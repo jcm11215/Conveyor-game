@@ -1,0 +1,677 @@
+<title>Beltline Fabricator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: shop-floor console. Header gauges, parts rack on the left, the floor grid in the middle, work order + inspector on the right. Single dark look, like a plant at night. */
+:root {
+  --floor: #1d2124;        /* painted concrete */
+  --panel: #262b2f;
+  --panel-2: #2f353a;
+  --line: #3c444a;
+  --ink: #e7e4dc;
+  --muted: #9aa19f;
+  --safety: #f2b632;       /* safety yellow */
+  --ok: #6fcf8b;
+  --warn: #f08a4b;
+  --steel: #8d979c;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--floor); color: var(--ink);
+  font: 14px/1.45 var(--body);
+  padding: 0 16px; padding-block: 12px 24px;
+  box-sizing: border-box;
+}
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--safety); outline-offset: 2px; }
+
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+  max-width: 1280px; margin: 0 auto 12px;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 {
+  font: 800 30px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; margin: 0;
+}
+.brand h1 span { color: var(--safety); }
+.brand small { color: var(--muted); font: 500 13px var(--display); letter-spacing: .12em; text-transform: uppercase; }
+.gauges { display: flex; flex-wrap: wrap; gap: 8px; }
+.gauge {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  padding: 4px 10px; min-width: 92px;
+}
+.gauge b { display: block; font: 600 17px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.gauge span { font: 500 11px var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
+.controls select { max-width: 100%; min-width: 0; }
+.btn {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+  padding: 7px 12px; cursor: pointer; font: 600 14px var(--display); letter-spacing: .08em; text-transform: uppercase;
+}
+.btn:hover { border-color: var(--steel); }
+.btn.primary { background: var(--safety); color: #1b1a14; border-color: var(--safety); }
+select.btn { padding-right: 8px; }
+
+.shop {
+  display: grid; gap: 14px; max-width: 1280px; margin: 0 auto;
+  grid-template-columns: 150px minmax(0, 1fr) 290px;
+  align-items: start;
+}
+.rack { display: flex; flex-direction: column; gap: 6px; }
+.rack h2, .side h2 {
+  font: 700 13px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px;
+}
+.tool {
+  display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; column-gap: 8px;
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  padding: 6px 8px; cursor: pointer;
+}
+.tool canvas { grid-row: span 2; width: 30px; height: 30px; }
+.tool .n { font: 600 15px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.tool .c { font: 12px var(--mono); color: var(--muted); }
+.tool kbd { font: 11px var(--mono); color: var(--muted); float: right; }
+.tool[aria-pressed="true"] { border-color: var(--safety); box-shadow: inset 3px 0 0 var(--safety); background: var(--panel-2); }
+.tool[hidden] { display: none; }
+.rotate { margin-top: 4px; }
+
+.board {
+  position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+  min-width: 0;
+}
+.board canvas { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; border-radius: 3px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; }
+.hint kbd { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.order h3 { font: 700 22px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin: 2px 0 6px; text-wrap: balance; }
+.order p { margin: 0 0 10px; color: #c9c6be; }
+.bar { height: 8px; background: var(--floor); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--safety); transition: width .3s; }
+.check { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.check li { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.check li b { font: 600 12px var(--mono); }
+.yes { color: var(--ok); } .no { color: var(--warn); } .dim { color: var(--muted); }
+.insp-title { font: 700 17px var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.insp-note { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; max-height: 150px; overflow: auto; }
+.log li { color: #c9c6be; }
+.log li.bad { color: var(--warn); } .log li.good { color: var(--ok); }
+
+.done {
+  position: absolute; inset: 8px; display: grid; place-items: center; background: rgba(20,23,25,.82); border-radius: 3px;
+}
+.done > div { background: var(--panel-2); border: 1px solid var(--safety); border-radius: 6px; padding: 18px 22px; max-width: 360px; text-align: center; }
+.done h3 { font: 800 30px/1 var(--display); text-transform: uppercase; color: var(--safety); margin: 0 0 8px; letter-spacing: .04em; }
+.done p { margin: 0 0 14px; }
+
+@media (max-width: 1000px) {
+  .shop { grid-template-columns: minmax(0, 1fr); }
+  .rack { flex-direction: row; flex-wrap: wrap; order: 2; }
+  .rack h2 { flex-basis: 100%; }
+  .tool { flex: 1 1 130px; }
+  .board { order: 1; }
+  .side { order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<header class="top">
+  <div class="brand"><h1>Belt<span>line</span></h1><small>Conveyor fabrication shop</small></div>
+  <div class="gauges">
+    <div class="gauge"><b id="gCash">$0</b><span>Budget</span></div>
+    <div class="gauge"><b id="gShip">0 / 0</b><span>Shipped</span></div>
+    <div class="gauge"><b id="gRate">0.0</b><span>Boxes / min</span></div>
+  </div>
+  <div class="controls">
+    <select id="level" class="btn" aria-label="Work order"></select>
+    <button id="run" class="btn primary" type="button">Pause</button>
+    <button id="speed" class="btn" type="button">1×</button>
+  </div>
+</header>
+
+<main class="shop">
+  <nav class="rack" id="rack" aria-label="Parts rack"><h2>Parts rack</h2></nav>
+
+  <section class="board">
+    <canvas id="cv" width="840" height="540" aria-label="Shop floor grid"></canvas>
+    <div class="done" id="done" hidden><div>
+      <h3>Order shipped</h3>
+      <p id="doneText"></p>
+      <button class="btn primary" id="next" type="button">Next work order</button>
+      <button class="btn" id="stay" type="button">Keep running</button>
+    </div></div>
+    <p class="hint">Drag with <b>Frame</b> to lay a run in the drag direction. Then install rollers, the belt and a drive motor. <kbd>R</kbd> rotates, right-click erases, keys <kbd>1</kbd>–<kbd>7</kbd> pick parts.</p>
+  </section>
+
+  <aside class="side">
+    <div class="card order">
+      <h2>Work order</h2>
+      <h3 id="oName"></h3>
+      <p id="oBrief"></p>
+      <div class="bar"><i id="oBar"></i></div>
+    </div>
+    <div class="card">
+      <h2>Inspector</h2>
+      <div id="insp"></div>
+    </div>
+    <div class="card">
+      <h2>Shop log</h2>
+      <ul class="log" id="log"></ul>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+const W = 14, H = 9;
+const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1], DIRN = ["east", "south", "west", "north"];
+const BELT_SPEED = 1.0;          // m/s, one grid section is 1 m
+const DRIVE_REACH = 6;           // one 0.75 kW drive moves 6 m of belt
+const BOX_VALUE = 8;
+const COST = { frame: 20, rollers: 10, belt: 15, motor: 60, full: 45, feeder: 0, bin: 0 };
+
+const LEVELS = [
+  { name: "First run", goal: 10, cash: 750,
+    brief: "Carry cartons from the infeed on the left to the shipping bin on the right. Each section needs a frame, rollers, a belt, and a drive within 6 m.",
+    feeders: [[0, 4, 0, 2.2]], bins: [[13, 4]], pillars: [] },
+  { name: "Around the columns", goal: 15, cash: 1600,
+    brief: "Building columns block the straight path. Route the line around them with turns and keep every stretch within reach of a drive.",
+    feeders: [[0, 6, 0, 2.0]], bins: [[13, 1]],
+    pillars: [[6,3],[6,4],[6,5],[6,6],[6,7],[6,8],[9,0],[9,1],[9,2],[9,3],[9,4]] },
+  { name: "Two lines, one dock", goal: 30, cash: 1900,
+    brief: "Two infeeds share one shipping bin. Merge the lines so neither backs up. A section holds one carton at a time.",
+    feeders: [[0, 1, 0, 2.4], [0, 7, 0, 2.4]], bins: [[13, 4]],
+    pillars: [[7,3],[7,5],[4,4]] },
+  { name: "Open shop floor", goal: 0, cash: 99999, sandbox: true,
+    brief: "Sandbox. Place your own infeeds and bins and build whatever you like.",
+    feeders: [[0, 4, 0, 2.0]], bins: [[13, 4]], pillars: [] },
+];
+
+const TOOLS = [
+  { id: "frame",   name: "Frame",        key: "1" },
+  { id: "rollers", name: "Rollers",      key: "2" },
+  { id: "belt",    name: "Belt",         key: "3" },
+  { id: "motor",   name: "Drive motor",  key: "4" },
+  { id: "full",    name: "Full section", key: "5" },
+  { id: "erase",   name: "Remove",       key: "6" },
+  { id: "inspect", name: "Inspect",      key: "7" },
+  { id: "feeder",  name: "Infeed",       key: "8", sandbox: true },
+  { id: "bin",     name: "Bin",          key: "9", sandbox: true },
+];
+
+let S; // game state
+const cv = document.getElementById("cv"); let ctx = cv.getContext("2d");
+const $ = id => document.getElementById(id);
+let tool = "full", curDir = 0, running = true, speedMul = 1, hover = null, paint = null;
+let powered = new Set(), jammed = new Set();
+
+function newState(li) {
+  const L = LEVELS[li];
+  const grid = Array.from({ length: H }, () => Array(W).fill(null));
+  L.pillars.forEach(([x, y]) => grid[y][x] = { kind: "pillar" });
+  L.feeders.forEach(([x, y, d, iv]) => grid[y][x] = { kind: "feeder", dir: d, iv, t: iv * .5, out: 0 });
+  L.bins.forEach(([x, y]) => grid[y][x] = { kind: "bin", got: 0 });
+  return { li, grid, items: [], cash: L.cash, spent: 0, shipped: 0, time: 0, done: false, shipTimes: [], nextId: 1 };
+}
+
+// ---------- helpers ----------
+const inb = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+const at = (x, y) => inb(x, y) ? S.grid[y][x] : null;
+const isConv = t => t && t.kind === "conv";
+const ready = t => isConv(t) && t.rollers && t.belt;
+const key = (x, y) => y * W + x;
+
+function recomputePower() {
+  powered = new Set();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = S.grid[y][x];
+    if (!isConv(t) || !t.motor || !ready(t)) continue;
+    // drive reaches along the linked run (upstream and downstream), DRIVE_REACH sections total
+    const seen = new Map([[key(x, y), 0]]), q = [[x, y, 0]];
+    while (q.length) {
+      const [cx, cy, d] = q.shift(); powered.add(key(cx, cy));
+      if (d >= DRIVE_REACH - 1) continue;
+      const ct = at(cx, cy);
+      const nbs = [[cx + DX[ct.dir], cy + DY[ct.dir]]];
+      for (let k = 0; k < 4; k++) {
+        const nx = cx + DX[k], ny = cy + DY[k], nt = at(nx, ny);
+        if (ready(nt) && nx + DX[nt.dir] === cx && ny + DY[nt.dir] === cy) nbs.push([nx, ny]);
+      }
+      for (const [nx, ny] of nbs) {
+        if (!ready(at(nx, ny)) || seen.has(key(nx, ny))) continue;
+        seen.set(key(nx, ny), d + 1); q.push([nx, ny, d + 1]);
+      }
+    }
+  }
+}
+
+function spend(n) {
+  if (S.cash < n) { log(`Not enough budget ($${n} needed).`, "bad"); return false; }
+  S.cash -= n; S.spent += n; return true;
+}
+function refund(t) {
+  let r = 0;
+  if (isConv(t)) r = COST.frame + (t.rollers ? COST.rollers : 0) + (t.belt ? COST.belt : 0) + (t.motor ? COST.motor : 0);
+  S.cash += r; S.spent -= r; return r;
+}
+
+let lastMsg = "", lastMsgT = 0;
+function log(msg, cls = "") {
+  const now = performance.now();
+  if (msg === lastMsg && now - lastMsgT < 2500) return;
+  lastMsg = msg; lastMsgT = now;
+  const li = document.createElement("li"); li.textContent = msg; if (cls) li.className = cls;
+  const ul = $("log"); ul.prepend(li); while (ul.children.length > 30) ul.lastChild.remove();
+}
+
+// ---------- building ----------
+function apply(x, y, prev) {
+  if (!inb(x, y)) return;
+  const t = at(x, y);
+  let changed = false;
+  if (prev && (tool === "frame" || tool === "full")) {
+    const dx = x - prev[0], dy = y - prev[1];
+    const d = DX.findIndex((v, i) => v === dx && DY[i] === dy);
+    if (d >= 0) { curDir = d; const pt = at(prev[0], prev[1]); if (isConv(pt) || pt?.kind === "feeder") { pt.dir = d; changed = true; } }
+  }
+  switch (tool) {
+    case "frame": case "full":
+      if (!t) {
+        const cost = tool === "full" ? COST.full : COST.frame;
+        if (spend(cost)) { S.grid[y][x] = { kind: "conv", dir: curDir, rollers: tool === "full", belt: tool === "full", motor: false }; changed = true; }
+      } else if (isConv(t)) {
+        if (!prev) { t.dir = curDir; changed = true; }
+        if (tool === "full") {
+          if (!t.rollers && spend(COST.rollers)) { t.rollers = true; changed = true; }
+          if (t.rollers && !t.belt && spend(COST.belt)) { t.belt = true; changed = true; }
+        }
+      } else if (t.kind === "pillar") log("That's a building column. Route around it.", "bad");
+      break;
+    case "rollers":
+      if (!isConv(t)) log("Rollers mount on a frame. Place a frame first.", "bad");
+      else if (!t.rollers && spend(COST.rollers)) { t.rollers = true; changed = true; }
+      break;
+    case "belt":
+      if (!isConv(t)) log("A belt needs a frame and rollers underneath.", "bad");
+      else if (!t.rollers) log("Install rollers before the belt, or it has nothing to ride on.", "bad");
+      else if (!t.belt && spend(COST.belt)) { t.belt = true; changed = true; }
+      break;
+    case "motor":
+      if (!isConv(t)) log("Drive motors bolt onto a conveyor frame.", "bad");
+      else if (!t.motor && spend(COST.motor)) { t.motor = true; changed = true; if (!ready(t)) log("Motor mounted. It will run once this section has rollers and a belt."); }
+      break;
+    case "erase":
+      if (isConv(t)) { const r = refund(t); S.grid[y][x] = null; S.items = S.items.filter(i => i.x !== x || i.y !== y); changed = true; if (!prev) log(`Section removed, $${r} of parts back in stock.`); }
+      else if (t && LEVELS[S.li].sandbox && t.kind !== "pillar") { S.grid[y][x] = null; S.items = S.items.filter(i => i.x !== x || i.y !== y); changed = true; }
+      break;
+    case "feeder": if (!t) { S.grid[y][x] = { kind: "feeder", dir: curDir, iv: 2, t: 0, out: 0 }; changed = true; } break;
+    case "bin": if (!t) { S.grid[y][x] = { kind: "bin", got: 0 }; changed = true; } break;
+  }
+  if (changed) recomputePower();
+}
+
+// ---------- simulation ----------
+function occupied() { const m = new Map(); for (const it of S.items) m.set(key(it.x, it.y), it); return m; }
+
+function step(dt) {
+  S.time += dt;
+  const occ = occupied();
+  jammed = new Set();
+  // feeders
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const f = S.grid[y][x]; if (!f || f.kind !== "feeder") continue;
+    f.t += dt;
+    if (f.t >= f.iv) {
+      const nx = x + DX[f.dir], ny = y + DY[f.dir], nt = at(nx, ny);
+      if (ready(nt) && !occ.has(key(nx, ny))) {
+        const it = { id: S.nextId++, x: nx, y: ny, p: 0, hue: Math.random() };
+        S.items.push(it); occ.set(key(nx, ny), it); f.t = 0; f.out++;
+      } else { f.t = f.iv; f.waiting = true; }
+      if (ready(nt) && f.t === 0) f.waiting = false;
+    }
+  }
+  // items, furthest along first so queues advance together
+  S.items.sort((a, b) => b.p - a.p);
+  for (let pass = 0; pass < 2; pass++) for (const it of [...S.items]) {
+    if (it.gone) continue;
+    const t = at(it.x, it.y);
+    if (!ready(t)) continue;
+    if (pass === 0 && powered.has(key(it.x, it.y))) it.p = Math.min(1, it.p + dt * BELT_SPEED);
+    if (it.p < 1) continue;
+    const nx = it.x + DX[t.dir], ny = it.y + DY[t.dir], nt = at(nx, ny);
+    if (nt && nt.kind === "bin") {
+      it.gone = true; occ.delete(key(it.x, it.y)); nt.got++;
+      S.shipped++; S.cash += BOX_VALUE; S.shipTimes.push(S.time);
+    } else if (ready(nt) && !occ.has(key(nx, ny))) {
+      occ.delete(key(it.x, it.y)); it.x = nx; it.y = ny; it.p = 0; occ.set(key(nx, ny), it);
+    } else if (!ready(nt)) {
+      jammed.add(key(it.x, it.y));
+    }
+  }
+  S.items = S.items.filter(i => !i.gone);
+  S.shipTimes = S.shipTimes.filter(t => S.time - t < 60);
+  const L = LEVELS[S.li];
+  if (!L.sandbox && !S.done && S.shipped >= L.goal) {
+    S.done = true;
+    $("doneText").textContent = `${L.goal} cartons shipped in ${fmtTime(S.time)}. You spent $${S.spent} of the $${L.cash} budget on parts.`;
+    $("next").hidden = S.li >= LEVELS.length - 1;
+    $("done").hidden = false;
+    log(`Work order "${L.name}" complete.`, "good");
+  }
+}
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+// ---------- drawing ----------
+let T = 60;
+function resize() {
+  const w = cv.parentElement.clientWidth - 16;
+  T = Math.max(22, Math.floor(w / W));
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = W * T * dpr; cv.height = H * T * dpr;
+  cv.style.width = W * T + "px"; cv.style.height = H * T + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawFloor() {
+  ctx.fillStyle = "#23282b"; ctx.fillRect(0, 0, W * T, H * T);
+  ctx.strokeStyle = "rgba(255,255,255,.05)"; ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x++) { ctx.beginPath(); ctx.moveTo(x * T + .5, 0); ctx.lineTo(x * T + .5, H * T); ctx.stroke(); }
+  for (let y = 0; y <= H; y++) { ctx.beginPath(); ctx.moveTo(0, y * T + .5); ctx.lineTo(W * T, y * T + .5); ctx.stroke(); }
+  // 1 m scale mark
+  ctx.fillStyle = "rgba(231,228,220,.35)"; ctx.font = `10px "IBM Plex Mono", monospace`;
+  ctx.fillText("1 m", 4, H * T - 5);
+}
+
+// draws a conveyor section in local coords: tile spans x -T/2..T/2 along travel, y across
+function drawConv(t, x, y, time, isPow, mini) {
+  const s = T;
+  ctx.save(); ctx.translate(x * s + s / 2, y * s + s / 2); ctx.rotate(t.dir * Math.PI / 2);
+  const h = s / 2, rail = s * .09, inner = h - rail;
+  // legs
+  ctx.fillStyle = "#59626a";
+  for (const lx of [-h + s * .12, h - s * .12]) for (const ly of [-h + 1, h - rail - 1]) ctx.fillRect(lx - rail * .6, ly, rail * 1.2, rail);
+  // rollers
+  if (t.rollers) {
+    const n = 5;
+    for (let i = 0; i < n; i++) {
+      const rx = -h + (i + .5) * s / n;
+      const g = ctx.createLinearGradient(rx - s * .05, 0, rx + s * .05, 0);
+      g.addColorStop(0, "#6f7a80"); g.addColorStop(.5, "#c4cbce"); g.addColorStop(1, "#6f7a80");
+      ctx.fillStyle = g; ctx.fillRect(rx - s * .05, -inner, s * .1, inner * 2);
+    }
+  }
+  // belt
+  if (t.belt) {
+    const bw = inner - s * .03;
+    ctx.fillStyle = "#15181a"; ctx.fillRect(-h, -bw, s, bw * 2);
+    ctx.save(); ctx.beginPath(); ctx.rect(-h, -bw, s, bw * 2); ctx.clip();
+    const off = isPow ? (time * BELT_SPEED * s) % (s / 3) : 0;
+    ctx.strokeStyle = isPow ? "rgba(242,182,50,.55)" : "rgba(141,151,156,.35)"; ctx.lineWidth = Math.max(1.5, s * .04);
+    for (let k = -1; k < 4; k++) {
+      const cx = -h + k * s / 3 + off;
+      ctx.beginPath(); ctx.moveTo(cx - s * .08, -bw * .55); ctx.lineTo(cx + s * .04, 0); ctx.lineTo(cx - s * .08, bw * .55); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // side rails
+  ctx.fillStyle = "#8d979c";
+  ctx.fillRect(-h, -h, s, rail); ctx.fillRect(-h, h - rail, s, rail);
+  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(-h, -h + rail - 1, s, 1); ctx.fillRect(-h, h - rail, s, 1);
+  if (!t.rollers && !mini) {
+    // bare frame: cross braces + faint arrow showing intended travel
+    ctx.strokeStyle = "#59626a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-h + 3, -inner); ctx.lineTo(h - 3, inner); ctx.moveTo(-h + 3, inner); ctx.lineTo(h - 3, -inner); ctx.stroke();
+  }
+  if (!t.belt && !mini) {
+    ctx.fillStyle = "rgba(242,182,50,.45)";
+    ctx.beginPath(); ctx.moveTo(s * .22, 0); ctx.lineTo(-s * .05, -s * .13); ctx.lineTo(-s * .05, s * .13); ctx.fill();
+  }
+  // motor on the side rail
+  if (t.motor) {
+    const mw = s * .34, mh = s * .2;
+    ctx.fillStyle = "#3d6b8a"; ctx.fillRect(-mw / 2, h - mh, mw, mh);
+    ctx.strokeStyle = "#1c3140"; ctx.lineWidth = 1; ctx.strokeRect(-mw / 2 + .5, h - mh + .5, mw - 1, mh - 1);
+    ctx.fillStyle = "#a9c7da";
+    for (let i = 1; i < 4; i++) ctx.fillRect(-mw / 2 + i * mw / 4 - .5, h - mh + 2, 1, mh - 4);
+    ctx.fillStyle = isPow ? "#6fcf8b" : "#f08a4b";
+    ctx.beginPath(); ctx.arc(mw / 2 - s * .05, h - mh / 2, s * .035, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawFeeder(f, x, y, time) {
+  const s = T; ctx.save(); ctx.translate(x * s + s / 2, y * s + s / 2);
+  ctx.fillStyle = "#2c2a22"; ctx.fillRect(-s * .42, -s * .42, s * .84, s * .84);
+  // hazard border
+  ctx.save(); ctx.beginPath(); ctx.rect(-s * .42, -s * .42, s * .84, s * .84); ctx.rect(-s * .32, -s * .32, s * .64, s * .64); ctx.clip("evenodd");
+  for (let k = -4; k < 6; k++) { ctx.fillStyle = k % 2 ? "#f2b632" : "#1b1a14"; ctx.beginPath(); const o = k * s * .16; ctx.moveTo(-s / 2 + o, -s / 2); ctx.lineTo(-s / 2 + o + s * .16, -s / 2); ctx.lineTo(-s / 2 + o + s * .16 - s, s / 2); ctx.lineTo(-s / 2 + o - s, s / 2); ctx.fill(); }
+  ctx.restore();
+  ctx.rotate(f.dir * Math.PI / 2);
+  ctx.fillStyle = f.waiting ? "#f08a4b" : "#f2b632";
+  ctx.beginPath(); ctx.moveTo(s * .2, 0); ctx.lineTo(-s * .1, -s * .16); ctx.lineTo(-s * .1, s * .16); ctx.fill();
+  ctx.restore();
+  // fill gauge
+  ctx.fillStyle = "rgba(242,182,50,.8)"; ctx.fillRect(x * s + 3, y * s + s - 4, (s - 6) * Math.min(1, f.t / f.iv), 2);
+}
+
+function drawBin(b, x, y) {
+  const s = T, px = x * s, py = y * s;
+  ctx.fillStyle = "#3a4a3f"; ctx.fillRect(px + s * .08, py + s * .08, s * .84, s * .84);
+  ctx.fillStyle = "#1a211c"; ctx.fillRect(px + s * .16, py + s * .16, s * .68, s * .68);
+  ctx.fillStyle = "#6fcf8b"; ctx.font = `600 ${Math.round(s * .26)}px "IBM Plex Mono", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(b.got, px + s / 2, py + s / 2 + 1);
+  ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
+}
+
+function drawPillar(x, y) {
+  const s = T, px = x * s, py = y * s;
+  ctx.fillStyle = "#4a4f52"; ctx.fillRect(px + 2, py + 2, s - 4, s - 4);
+  ctx.save(); ctx.beginPath(); ctx.rect(px + 2, py + 2, s - 4, s - 4); ctx.clip();
+  ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 2;
+  for (let k = -s; k < s; k += 8) { ctx.beginPath(); ctx.moveTo(px + k, py + s); ctx.lineTo(px + k + s, py); ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawBox(it, t) {
+  const s = T, p = it.p - .5;
+  const cx = it.x * s + s / 2 + DX[t.dir] * p * s * .9, cy = it.y * s + s / 2 + DY[t.dir] * p * s * .9;
+  const b = s * .5;
+  ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(cx - b / 2 + 2, cy - b / 2 + 3, b, b);
+  ctx.fillStyle = `hsl(${30 + it.hue * 10}, 42%, ${52 + it.hue * 8}%)`; ctx.fillRect(cx - b / 2, cy - b / 2, b, b);
+  ctx.fillStyle = "rgba(90,60,30,.55)"; ctx.fillRect(cx - b * .08, cy - b / 2, b * .16, b); // tape
+  if (jammed.has(key(it.x, it.y))) { ctx.strokeStyle = "#f08a4b"; ctx.lineWidth = 2; ctx.strokeRect(cx - b / 2 - 2, cy - b / 2 - 2, b + 4, b + 4); }
+}
+
+function render(time) {
+  drawFloor();
+  const showPow = tool === "motor" || tool === "inspect";
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = S.grid[y][x]; if (!t) continue;
+    if (t.kind === "conv") {
+      if (showPow && powered.has(key(x, y))) { ctx.fillStyle = "rgba(111,207,139,.13)"; ctx.fillRect(x * T, y * T, T, T); }
+      drawConv(t, x, y, time, powered.has(key(x, y)));
+    }
+    else if (t.kind === "feeder") drawFeeder(t, x, y, time);
+    else if (t.kind === "bin") drawBin(t, x, y);
+    else if (t.kind === "pillar") drawPillar(x, y);
+  }
+  for (const it of S.items) drawBox(it, at(it.x, it.y));
+  if (hover && inb(hover[0], hover[1])) {
+    const [x, y] = hover;
+    ctx.strokeStyle = tool === "erase" ? "#f08a4b" : "#f2b632"; ctx.lineWidth = 2;
+    ctx.strokeRect(x * T + 1, y * T + 1, T - 2, T - 2);
+    if ((tool === "frame" || tool === "full" || tool === "feeder") && !at(x, y)) {
+      ctx.globalAlpha = .45;
+      if (tool === "feeder") drawFeeder({ dir: curDir, t: 0, iv: 1 }, x, y, time);
+      else drawConv({ dir: curDir, rollers: tool === "full", belt: tool === "full" }, x, y, time, false);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// ---------- UI ----------
+function iconCanvas(id) {
+  const c = document.createElement("canvas"); c.width = c.height = 60;
+  const g = c.getContext("2d"); const saveCtx = ctx, saveT = T;
+  ctx = g; T = 60;
+  try {
+    const t = { dir: 0, rollers: false, belt: false, motor: false };
+    if (id === "frame") drawConv(t, 0, 0, 0, false, true);
+    if (id === "rollers") drawConv({ ...t, rollers: true }, 0, 0, 0, false, true);
+    if (id === "belt" || id === "full") drawConv({ ...t, rollers: true, belt: true }, 0, 0, 0, false, true);
+    if (id === "motor") drawConv({ ...t, rollers: true, belt: true, motor: true }, 0, 0, 0, true, true);
+    if (id === "feeder") drawFeeder({ dir: 0, t: 0, iv: 1 }, 0, 0, 0);
+    if (id === "bin") drawBin({ got: "" }, 0, 0);
+    if (id === "erase") { g.strokeStyle = "#f08a4b"; g.lineWidth = 6; g.beginPath(); g.moveTo(14, 14); g.lineTo(46, 46); g.moveTo(46, 14); g.lineTo(14, 46); g.stroke(); }
+    if (id === "inspect") { g.strokeStyle = "#e7e4dc"; g.lineWidth = 5; g.beginPath(); g.arc(26, 26, 13, 0, 7); g.moveTo(36, 36); g.lineTo(50, 50); g.stroke(); }
+  } finally { ctx = saveCtx; T = saveT; }
+  return c;
+}
+
+function buildRack() {
+  const rack = $("rack");
+  for (const t of TOOLS) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "tool"; b.dataset.tool = t.id;
+    b.appendChild(iconCanvas(t.id));
+    const n = document.createElement("span"); n.className = "n"; n.innerHTML = `${t.name}<kbd>${t.key}</kbd>`;
+    const c = document.createElement("span"); c.className = "c";
+    c.textContent = COST[t.id] ? `$${COST[t.id]}` : t.id === "erase" ? "refunds parts" : t.id === "inspect" ? "check status" : "free";
+    b.append(n, c);
+    b.addEventListener("click", () => setTool(t.id));
+    rack.appendChild(b);
+  }
+  const r = document.createElement("button"); r.type = "button"; r.className = "btn rotate"; r.id = "rot";
+  r.addEventListener("click", rotate); rack.appendChild(r);
+}
+function rotate() {
+  curDir = (curDir + 1) % 4;
+  if (hover && isConv(at(...hover)) && (tool === "frame" || tool === "full")) { at(...hover).dir = curDir; recomputePower(); }
+  updateRot();
+}
+function updateRot() { $("rot").textContent = `Rotate · facing ${DIRN[curDir]}`; }
+function setTool(id) {
+  tool = id;
+  document.querySelectorAll(".tool").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === id));
+}
+
+function loadLevel(li) {
+  S = newState(li); $("done").hidden = true;
+  const L = LEVELS[li];
+  $("oName").textContent = L.name; $("oBrief").textContent = L.brief;
+  document.querySelectorAll(".tool").forEach(b => { const t = TOOLS.find(x => x.id === b.dataset.tool); b.hidden = !!t.sandbox && !L.sandbox; });
+  if (!L.sandbox && (tool === "feeder" || tool === "bin")) setTool("full");
+  $("level").value = li; $("log").innerHTML = "";
+  log(`Work order: ${L.name}.`);
+  recomputePower();
+}
+
+function inspector() {
+  const el = $("insp");
+  const t = hover && at(...hover);
+  if (!t) {
+    el.innerHTML = `<div class="insp-title dim">Empty floor</div><div class="insp-note">Hover a section to see what it still needs. Belt speed ${BELT_SPEED.toFixed(1)} m/s, one drive covers ${DRIVE_REACH} m.</div>`;
+    return;
+  }
+  if (t.kind === "conv") {
+    const p = powered.has(key(...hover));
+    const row = (label, ok, extra = "") => `<li><span>${label}</span><b class="${ok ? "yes" : "no"}">${ok ? "fitted" : extra || "missing"}</b></li>`;
+    let need = !t.rollers ? "Install rollers next." : !t.belt ? "Fit the belt next." : !p ? `No drive within ${DRIVE_REACH} m of this section. Mount a motor on this run.` : "Running.";
+    el.innerHTML = `<div class="insp-title">Conveyor section · ${DIRN[t.dir]}</div>
+      <ul class="check">${row("Frame", true)}${row("Rollers", t.rollers)}${row("Belt", t.belt)}${row("Drive motor here", t.motor, "none")}
+      <li><span>Powered</span><b class="${p ? "yes" : "no"}">${p ? "yes" : "no"}</b></li></ul>
+      <div class="insp-note">${need}</div>`;
+  } else if (t.kind === "feeder") {
+    el.innerHTML = `<div class="insp-title">Infeed · ${DIRN[t.dir]}</div><div class="insp-note">Releases a carton every ${t.iv.toFixed(1)} s onto the section it faces. Released so far: ${t.out}.${t.waiting ? " <span class='no'>Waiting: the section in front is missing, unfinished or full.</span>" : ""}</div>`;
+  } else if (t.kind === "bin") {
+    el.innerHTML = `<div class="insp-title">Shipping bin</div><div class="insp-note">Accepts cartons from any side. Received ${t.got}. Each pays $${BOX_VALUE}.</div>`;
+  } else {
+    el.innerHTML = `<div class="insp-title">Building column</div><div class="insp-note">Structural. Conveyors must route around it.</div>`;
+  }
+}
+
+let lastHud = 0;
+function hud(now) {
+  if (now - lastHud < 150) return; lastHud = now;
+  const L = LEVELS[S.li];
+  $("gCash").textContent = L.sandbox ? "∞" : `$${S.cash}`;
+  $("gShip").textContent = L.sandbox ? `${S.shipped}` : `${S.shipped} / ${L.goal}`;
+  const win = Math.min(60, S.time);
+  $("gRate").textContent = win > 3 ? (S.shipTimes.length / win * 60).toFixed(1) : "0.0";
+  $("oBar").style.width = L.sandbox ? "0%" : Math.min(100, S.shipped / L.goal * 100) + "%";
+  inspector();
+}
+
+// ---------- input ----------
+function tileAt(e) {
+  const r = cv.getBoundingClientRect();
+  return [Math.floor((e.clientX - r.left) / (r.width / W)), Math.floor((e.clientY - r.top) / (r.height / H))];
+}
+let savedTool = null;
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("pointerdown", e => {
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  if (e.button === 2) { savedTool = tool; tool = "erase"; }
+  const p = tileAt(e); hover = p; paint = p; apply(p[0], p[1], null);
+});
+cv.addEventListener("pointermove", e => {
+  const p = tileAt(e);
+  if (paint && (p[0] !== paint[0] || p[1] !== paint[1])) {
+    // step one tile at a time so fast drags leave no gaps
+    let [cx, cy] = paint;
+    while (cx !== p[0] || cy !== p[1]) {
+      const prev = [cx, cy];
+      if (cx !== p[0]) cx += Math.sign(p[0] - cx); else cy += Math.sign(p[1] - cy);
+      apply(cx, cy, prev);
+    }
+    paint = p;
+  }
+  hover = p;
+});
+const endPaint = () => { paint = null; if (savedTool) { tool = savedTool; savedTool = null; } };
+cv.addEventListener("pointerup", endPaint); cv.addEventListener("pointercancel", endPaint);
+cv.addEventListener("pointerleave", () => { if (!paint) hover = null; });
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  const t = TOOLS.find(t => t.key === e.key);
+  if (t && (!t.sandbox || LEVELS[S.li].sandbox)) setTool(t.id);
+  if (e.key === "r" || e.key === "R") rotate();
+  if (e.key === " ") { e.preventDefault(); toggleRun(); }
+});
+function toggleRun() { running = !running; $("run").textContent = running ? "Pause" : "Run"; $("run").classList.toggle("primary", running); }
+$("run").addEventListener("click", toggleRun);
+$("speed").addEventListener("click", () => { speedMul = speedMul === 1 ? 2 : speedMul === 2 ? 4 : 1; $("speed").textContent = speedMul + "×"; });
+LEVELS.forEach((L, i) => { const o = document.createElement("option"); o.value = i; o.textContent = (L.sandbox ? "" : `Order ${i + 1}: `) + L.name; $("level").appendChild(o); });
+$("level").addEventListener("change", e => loadLevel(+e.target.value));
+$("next").addEventListener("click", () => loadLevel(S.li + 1));
+$("stay").addEventListener("click", () => { $("done").hidden = true; });
+
+// ---------- boot ----------
+function start(data) {
+  buildRack(); updateRot(); setTool("full");
+  if (data && data.S) { S = data.S; loadLevelUI(); } else loadLevel(0);
+  resize(); new ResizeObserver(resize).observe(cv.parentElement);
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    if (running && !S.done) for (let i = 0; i < speedMul; i++) step(dt);
+    render(S.time); hud(now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+function loadLevelUI() {
+  const L = LEVELS[S.li]; $("oName").textContent = L.name; $("oBrief").textContent = L.brief; $("level").value = S.li;
+  document.querySelectorAll(".tool").forEach(b => { const t = TOOLS.find(x => x.id === b.dataset.tool); b.hidden = !!t.sandbox && !L.sandbox; });
+  recomputePower();
+}
+window.claude?.hot?.snapshot?.(() => ({ S }));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
