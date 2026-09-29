@@ -97,6 +97,7 @@ select.btn { padding-right: 8px; }
 .check { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .check li { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .check li b { font: 600 12px var(--mono); }
+.check.print li span { flex: 1; } .check.print li b { width: 3.2em; text-align: right; }
 .yes { color: var(--ok); } .no { color: var(--warn); } .dim { color: var(--muted); }
 .insp-title { font: 700 17px var(--display); letter-spacing: .04em; text-transform: uppercase; }
 .insp-note { color: var(--muted); font-size: 13px; margin-top: 8px; }
@@ -110,6 +111,32 @@ select.btn { padding-right: 8px; }
 .done > div { background: var(--panel-2); border: 1px solid var(--safety); border-radius: 6px; padding: 18px 22px; max-width: 360px; text-align: center; }
 .done h3 { font: 800 30px/1 var(--display); text-transform: uppercase; color: var(--safety); margin: 0 0 8px; letter-spacing: .04em; }
 .done p { margin: 0 0 14px; }
+
+.bp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dlg {
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px; width: min(920px, calc(100% - 32px)); max-height: calc(100% - 32px);
+}
+.dlg::backdrop { background: rgba(10,12,13,.7); }
+.dlg h2 { font: 800 24px/1.1 var(--display); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; }
+.dlg p { margin: 0 0 10px; }
+.dlg menu { display: flex; justify-content: flex-end; gap: 8px; margin: 14px 0 0; padding: 0; }
+.bp-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; margin-top: 10px; }
+.bp-sheet {
+  background: #e9eef2; border-radius: 4px; min-height: 220px; display: grid; place-items: center; overflow: hidden;
+}
+.bp-sheet img { display: block; width: 100%; height: auto; }
+.bp-sheet span { color: #59626a; }
+.bp-form { display: grid; gap: 8px; align-content: start; }
+.bp-form label { display: grid; gap: 3px; font: 600 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.bp-form label.inline { display: flex; align-items: center; gap: 8px; }
+.bp-form input:not([type=checkbox]), .bp-form select {
+  font: 14px var(--body); color: var(--ink); background: var(--floor); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 0;
+}
+.bp-form small { font: 12px var(--body); text-transform: none; letter-spacing: 0; }
+.bp-file { display: inline-block; }
+.sheet-dlg img { display: block; max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
+@media (max-width: 700px) { .bp-body { grid-template-columns: minmax(0, 1fr); } }
 
 @media (max-width: 1000px) {
   .shop { grid-template-columns: minmax(0, 1fr); }
@@ -127,12 +154,13 @@ select.btn { padding-right: 8px; }
   <div class="gauges">
     <div class="gauge"><b id="gCash">$0</b><span>Budget</span></div>
     <div class="gauge"><b id="gShip">0 / 0</b><span>Shipped</span></div>
-    <div class="gauge"><b id="gRate">0.0</b><span>Boxes / min</span></div>
+    <div class="gauge"><b id="gRate">0.0</b><span>Per min</span></div>
   </div>
   <div class="controls">
     <select id="level" class="btn" aria-label="Work order"></select>
     <button id="run" class="btn primary" type="button">Pause</button>
     <button id="speed" class="btn" type="button">1×</button>
+    <button id="addBp" class="btn" type="button">Add blueprint</button>
   </div>
 </header>
 
@@ -147,7 +175,7 @@ select.btn { padding-right: 8px; }
       <button class="btn primary" id="next" type="button">Next work order</button>
       <button class="btn" id="stay" type="button">Keep running</button>
     </div></div>
-    <p class="hint">Drag with <b>Frame</b> to lay a run in the drag direction. Then install rollers, the belt and a drive motor. <kbd>R</kbd> rotates, right-click erases, keys <kbd>1</kbd>–<kbd>7</kbd> pick parts.</p>
+    <p class="hint" id="hint">Drag with <b>Frame</b> to lay a run in the drag direction. Then install rollers, the belt and a drive motor. <kbd>R</kbd> rotates, right-click erases, keys <kbd>1</kbd>–<kbd>7</kbd> pick parts.</p>
   </section>
 
   <aside class="side">
@@ -156,6 +184,11 @@ select.btn { padding-right: 8px; }
       <h3 id="oName"></h3>
       <p id="oBrief"></p>
       <div class="bar"><i id="oBar"></i></div>
+      <ul class="check print" id="oCheck" hidden></ul>
+      <div class="bp-actions" id="bpActions" hidden>
+        <button class="btn" id="viewBp" type="button">View drawing</button>
+        <button class="btn" id="delBp" type="button">Remove blueprint</button>
+      </div>
     </div>
     <div class="card">
       <h2>Inspector</h2>
@@ -168,6 +201,35 @@ select.btn { padding-right: 8px; }
   </aside>
 </main>
 
+<dialog class="dlg" id="bpDlg" aria-labelledby="bpH">
+  <form method="dialog" id="bpForm">
+    <h2 id="bpH">Add a blueprint</h2>
+    <p class="dim">Load a drawing as a PDF or an image. The shop reads the title block and notes, and you check the spec before it goes on the floor. The drawing stays in this browser and is never uploaded.</p>
+    <label class="btn bp-file">Choose drawing<input type="file" id="bpFile" accept=".pdf,application/pdf,image/*" hidden></label>
+    <span class="dim" id="bpFileName">No file chosen. You can also fill in the spec by hand.</span>
+    <div class="bp-body">
+      <div class="bp-sheet" id="bpSheet"><span>No drawing loaded</span></div>
+      <div class="bp-form">
+        <label>Name<input id="bpTitle" required maxlength="80"></label>
+        <label>Type<select id="bpType"><option value="screw">Screw feeder or conveyor</option><option value="belt">Belt conveyor</option></select></label>
+        <label class="inline screwOnly"><input type="checkbox" id="bpTwin"> Twin screws</label>
+        <label>Overall length (ft)<input id="bpLen" type="number" min="3" max="40" step="0.5" required></label>
+        <label>Units to build<input id="bpUnits" type="number" min="1" max="3" required><small>The floor fits up to 3.</small></label>
+        <label class="screwOnly">Hopper length (sections)<input id="bpHop" type="number" min="1" max="11"></label>
+        <label class="screwOnly">Flight pitch, inlet to discharge<input id="bpZones" placeholder="5x90, 7x118, 14"><small>Pitch × length in inches. A last pitch with no length is one flight at the discharge.</small></label>
+        <p class="insp-note" id="bpRead"></p>
+      </div>
+    </div>
+    <menu>
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="make">Create work order</button>
+    </menu>
+  </form>
+</dialog>
+<dialog class="dlg sheet-dlg" id="sheetDlg" aria-label="Blueprint drawing">
+  <form method="dialog"><img id="sheetImg" alt="Blueprint drawing"><menu><button class="btn">Close</button></menu></form>
+</dialog>
+
 <script>
 (() => {
 const W = 14, H = 9;
@@ -175,7 +237,58 @@ const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1], DIRN = ["east", "south", "west", "
 const BELT_SPEED = 1.0;          // m/s, one grid section is 1 m
 const DRIVE_REACH = 6;           // one 0.75 kW drive moves 6 m of belt
 const BOX_VALUE = 8;
-const COST = { frame: 20, rollers: 10, belt: 15, motor: 60, full: 45, feeder: 0, bin: 0 };
+const COST = { frame: 20, rollers: 10, belt: 15, motor: 60, full: 45, feeder: 0, bin: 0,
+  trough: 120, flights: 90, hopper: 150, cover: 40, drive: 500, spout: 80, foot: 30 };
+// screw speed from flight pitch (inches): a longer pitch moves material further per turn
+const screwSpeed = pitch => Math.max(.25, Math.min(1.4, .08 * pitch));
+
+// ---------- blueprints ----------
+// A blueprint spec is what the shop reads off a drawing and the player confirms:
+// { title, type: "screw" | "belt", twin, dia, lengthFt, units, hopperYd, hopperSections, zones: [{ pitch, len }] }
+// Each grid section is 1 m, so the drawing's length sets how many sections one unit takes.
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ftLabel = ft => { const i = Math.round(ft * 12); return `${Math.floor(i / 12)}'-${i % 12}"`; };
+const sectionsFor = spec => clamp(Math.round((spec.lengthFt || 20) * .3048), 2, 12);
+function unitPlan(spec) {
+  const n = sectionsFor(spec);
+  if (spec.type === "belt") return Array.from({ length: n }, (_, i) => ({ motor: i % DRIVE_REACH === 0 }));
+  // zones with a length share the run in proportion; a trailing zone with no length is one flight at the discharge
+  const zones = spec.zones?.length ? spec.zones : [{ pitch: spec.dia || 12 }];
+  const last = zones[zones.length - 1], tail = last.len ? null : last;
+  const body = zones.filter(z => z.len), bodyN = tail ? n - 1 : n, total = body.reduce((a, z) => a + z.len, 0);
+  const hop = clamp(spec.hopperSections || Math.round(n * 2 / 3), 1, n - 1);
+  return Array.from({ length: n }, (_, i) => {
+    let pitch = (tail || zones[0]).pitch;
+    if (i < bodyN && body.length) { const f = (i + .5) / bodyN * total; let acc = 0; pitch = (body.find(z => (acc += z.len) >= f) || body[body.length - 1]).pitch; }
+    return { top: i < hop ? "hopper" : "cover", pitch, twin: spec.twin !== false, drive: i === 0, spout: i === n - 1 };
+  });
+}
+function levelFromSpec(spec, extra = {}) {
+  const screw = spec.type !== "belt", plan = unitPlan(spec), n = plan.length;
+  const count = clamp(spec.units || 1, 1, 3), top = Math.floor((H - 3 * count) / 2);
+  const x = screw ? Math.floor((W - n) / 2) : Math.floor((W - n - 2) / 2) + 1;
+  const feet = screw ? clamp(Math.round(n / 2), 0, n - 2) : 0;
+  const hop = plan.filter(c => c.top === "hopper").length;
+  const units = [], feeders = [], bins = [];
+  for (let k = 0; k < count; k++) {
+    const y = top + 3 * k + 1;
+    units.push({ name: `Unit ${k + 1}`, x, y, dir: 0, plan, feet, label: ftLabel(spec.lengthFt || 20) });
+    if (screw) feeders.push([x + Math.min(1, hop - 1), y - 1, 1, 2.5, "bulk"]);
+    else { feeders.push([x - 1, y, 0, 2.2]); bins.push([x + n, y]); }
+  }
+  const per = screw
+    ? plan.reduce((a, c) => a + COST.trough + COST.flights + COST[c.top] + (c.drive ? COST.drive : 0) + (c.spout ? COST.spout : 0), 0) + feet * COST.foot
+    : plan.reduce((a, c) => a + COST.full + (c.motor ? COST.motor : 0), 0);
+  const goal = 20 * count, title = spec.title || "Custom conveyor", many = count > 1 ? `${count} units` : "1 unit";
+  return {
+    name: `Blueprint: ${title}`, goal, cash: Math.ceil(per * count * 1.12 / 100) * 100,
+    family: screw ? "screw" : "belt", item: screw ? "scoops" : "cartons", spec, units, feeders, bins, pillars: [],
+    brief: screw
+      ? `Build ${many} to print: ${title}. Follow the blue outline: trough, then flights, then the hopper or cover on top. Drive on the inlet end, spout on the discharge end${feet ? `, ${feet} saddle feet per unit` : ""}. Then discharge ${goal} scoops from the loaders.`
+      : `Build ${many} to print: ${title}. Frame, rollers and belt on every section, and a drive motor wherever the outline shows one. Then ship ${goal} cartons.`,
+    ...extra,
+  };
+}
 
 const LEVELS = [
   { name: "First run", goal: 10, cash: 750,
@@ -189,22 +302,34 @@ const LEVELS = [
     brief: "Two infeeds share one shipping bin. Merge the lines so neither backs up. A section holds one carton at a time.",
     feeders: [[0, 1, 0, 2.4], [0, 7, 0, 2.4]], bins: [[13, 4]],
     pillars: [[7,3],[7,5],[4,4]] },
+  levelFromSpec({ title: `14" twin screw feeder, 20'-0" with 20 yd³ hopper`, type: "screw", twin: true, dia: 14, lengthFt: 20,
+    units: 2, hopperYd: 20, hopperSections: 4, zones: [{ pitch: 5, len: 90 }, { pitch: 7, len: 118 }, { pitch: 14 }] },
+    { name: "Sample blueprint: twin screw feeder" }),
   { name: "Open shop floor", goal: 0, cash: 99999, sandbox: true,
     brief: "Sandbox. Place your own infeeds and bins and build whatever you like.",
     feeders: [[0, 4, 0, 2.0]], bins: [[13, 4]], pillars: [] },
 ];
 
 const TOOLS = [
-  { id: "frame",   name: "Frame",        key: "1" },
-  { id: "rollers", name: "Rollers",      key: "2" },
-  { id: "belt",    name: "Belt",         key: "3" },
-  { id: "motor",   name: "Drive motor",  key: "4" },
-  { id: "full",    name: "Full section", key: "5" },
+  { id: "frame",   name: "Frame",        key: "1", family: "belt" },
+  { id: "rollers", name: "Rollers",      key: "2", family: "belt" },
+  { id: "belt",    name: "Belt",         key: "3", family: "belt" },
+  { id: "motor",   name: "Drive motor",  key: "4", family: "belt" },
+  { id: "full",    name: "Full section", key: "5", family: "belt" },
+  { id: "trough",  name: "Trough",  key: "q", family: "screw" },
+  { id: "flights", name: "Flights", key: "w", family: "screw" },
+  { id: "hopper",  name: "Hopper",       key: "e", family: "screw" },
+  { id: "cover",   name: "Cover",        key: "a", family: "screw" },
+  { id: "drive",   name: "Screw drive",   key: "s", family: "screw" },
+  { id: "spout",   name: "Spout",        key: "d", family: "screw" },
+  { id: "foot",    name: "Saddle foot",  key: "f", family: "screw" },
   { id: "erase",   name: "Remove",       key: "6" },
   { id: "inspect", name: "Inspect",      key: "7" },
   { id: "feeder",  name: "Infeed",       key: "8", sandbox: true },
   { id: "bin",     name: "Bin",          key: "9", sandbox: true },
 ];
+const toolShown = (t, L) => t.sandbox ? !!L.sandbox
+  : !t.family || L.sandbox || t.family === (L.family || "belt");
 
 let S; // game state
 const cv = document.getElementById("cv"); let ctx = cv.getContext("2d");
@@ -216,7 +341,7 @@ function newState(li) {
   const L = LEVELS[li];
   const grid = Array.from({ length: H }, () => Array(W).fill(null));
   L.pillars.forEach(([x, y]) => grid[y][x] = { kind: "pillar" });
-  L.feeders.forEach(([x, y, d, iv]) => grid[y][x] = { kind: "feeder", dir: d, iv, t: iv * .5, out: 0 });
+  L.feeders.forEach(([x, y, d, iv, mat]) => grid[y][x] = { kind: "feeder", dir: d, iv, t: iv * .5, out: 0, mat });
   L.bins.forEach(([x, y]) => grid[y][x] = { kind: "bin", got: 0 });
   return { li, grid, items: [], cash: L.cash, spent: 0, shipped: 0, time: 0, done: false, shipTimes: [], nextId: 1 };
 }
@@ -225,15 +350,58 @@ function newState(li) {
 const inb = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
 const at = (x, y) => inb(x, y) ? S.grid[y][x] : null;
 const isConv = t => t && t.kind === "conv";
-const ready = t => isConv(t) && t.rollers && t.belt;
+const isScrew = t => t && t.kind === "screw";
+const isLine = t => isConv(t) || isScrew(t);
+const ready = t => (isConv(t) && t.rollers && t.belt) || (isScrew(t) && t.flights && !!t.top);
+const speedOf = t => isScrew(t) ? screwSpeed(t.pitch || 7) : BELT_SPEED;
 const key = (x, y) => y * W + x;
+
+// blueprint cells for the current work order: key -> { unit, i, x, y, dir, ...plan cell }
+let spec = new Map();
+function buildSpec() {
+  spec = new Map();
+  for (const u of LEVELS[S.li].units || []) u.plan.forEach((p, i) => {
+    const x = u.x + DX[u.dir] * i, y = u.y + DY[u.dir] * i;
+    spec.set(key(x, y), { ...p, unit: u, i, x, y, dir: u.dir });
+  });
+}
+function cellOk(c, t) {
+  if (LEVELS[S.li].family === "belt") return isConv(t) && t.dir === c.dir && t.rollers && t.belt && (!c.motor || t.motor);
+  return isScrew(t) && t.dir === c.dir && t.flights && t.top === c.top && (!c.drive || t.drive) && (!c.spout || t.spout);
+}
+// what one unit still needs to match the print
+function printCheck(u) {
+  const belt = LEVELS[S.li].family === "belt";
+  const cells = [...spec.values()].filter(c => c.unit === u);
+  const tiles = cells.map(c => { const t = at(c.x, c.y); return (belt ? isConv(t) : isScrew(t)) && t.dir === c.dir ? t : null; });
+  const count = f => cells.reduce((n, c, i) => n + (tiles[i] && f(tiles[i], c) ? 1 : 0), 0);
+  const need = f => cells.filter(f).length;
+  if (belt) return [
+    ["Frames",        count(() => true),                        cells.length],
+    ["Rollers",       count(t => t.rollers),                    cells.length],
+    ["Belts",         count(t => t.belt),                       cells.length],
+    ["Drive motors",  count((t, c) => c.motor && t.motor),      need(c => c.motor)],
+  ];
+  return [
+    ["Troughs",       count(() => true),                        cells.length],
+    ["Flights",       count(t => t.flights),                    cells.length],
+    ["Hopper",        count((t, c) => c.top === "hopper" && t.top === "hopper"), need(c => c.top === "hopper")],
+    ["Covers",        count((t, c) => c.top === "cover" && t.top === "cover"),   need(c => c.top === "cover")],
+    ["Drive end",     count((t, c) => c.drive && t.drive),      need(c => c.drive)],
+    ["Discharge",     count((t, c) => c.spout && t.spout),      need(c => c.spout)],
+    ["Saddle feet",   Math.min(u.feet, count(t => t.foot)),     u.feet],
+  ].filter(r => r[2] > 0);
+}
+const toPrint = u => printCheck(u).every(([, have, need]) => have >= need);
 
 function recomputePower() {
   powered = new Set();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = S.grid[y][x];
-    if (!isConv(t) || !t.motor || !ready(t)) continue;
-    // drive reaches along the linked run (upstream and downstream), DRIVE_REACH sections total
+    if (!((isConv(t) && t.motor) || (isScrew(t) && t.drive)) || !ready(t)) continue;
+    // drive reaches along the linked run (upstream and downstream), DRIVE_REACH sections total;
+    // a belt drive only turns belt, a screw drive only turns the screw it is coupled to
+    const same = nt => ready(nt) && nt.kind === t.kind;
     const seen = new Map([[key(x, y), 0]]), q = [[x, y, 0]];
     while (q.length) {
       const [cx, cy, d] = q.shift(); powered.add(key(cx, cy));
@@ -242,10 +410,10 @@ function recomputePower() {
       const nbs = [[cx + DX[ct.dir], cy + DY[ct.dir]]];
       for (let k = 0; k < 4; k++) {
         const nx = cx + DX[k], ny = cy + DY[k], nt = at(nx, ny);
-        if (ready(nt) && nx + DX[nt.dir] === cx && ny + DY[nt.dir] === cy) nbs.push([nx, ny]);
+        if (same(nt) && nx + DX[nt.dir] === cx && ny + DY[nt.dir] === cy) nbs.push([nx, ny]);
       }
       for (const [nx, ny] of nbs) {
-        if (!ready(at(nx, ny)) || seen.has(key(nx, ny))) continue;
+        if (!same(at(nx, ny)) || seen.has(key(nx, ny))) continue;
         seen.set(key(nx, ny), d + 1); q.push([nx, ny, d + 1]);
       }
     }
@@ -259,6 +427,8 @@ function spend(n) {
 function refund(t) {
   let r = 0;
   if (isConv(t)) r = COST.frame + (t.rollers ? COST.rollers : 0) + (t.belt ? COST.belt : 0) + (t.motor ? COST.motor : 0);
+  if (isScrew(t)) r = COST.trough + (t.flights ? COST.flights : 0) + (t.top ? COST[t.top] : 0) + (t.drive ? COST.drive : 0)
+    + (t.spout ? COST.spout : 0) + (t.foot ? COST.foot : 0);
   S.cash += r; S.spent -= r; return r;
 }
 
@@ -276,11 +446,12 @@ function apply(x, y, prev) {
   if (!inb(x, y)) return;
   const t = at(x, y);
   let changed = false;
-  if (prev && (tool === "frame" || tool === "full")) {
+  if (prev && (tool === "frame" || tool === "full" || tool === "trough")) {
     const dx = x - prev[0], dy = y - prev[1];
     const d = DX.findIndex((v, i) => v === dx && DY[i] === dy);
-    if (d >= 0) { curDir = d; const pt = at(prev[0], prev[1]); if (isConv(pt) || pt?.kind === "feeder") { pt.dir = d; changed = true; } }
+    if (d >= 0) { curDir = d; const pt = at(prev[0], prev[1]); if (isLine(pt) || pt?.kind === "feeder") { pt.dir = d; changed = true; } }
   }
+  const sp = spec.get(key(x, y));
   switch (tool) {
     case "frame": case "full":
       if (!t) {
@@ -307,11 +478,50 @@ function apply(x, y, prev) {
       if (!isConv(t)) log("Drive motors bolt onto a conveyor frame.", "bad");
       else if (!t.motor && spend(COST.motor)) { t.motor = true; changed = true; if (!ready(t)) log("Motor mounted. It will run once this section has rollers and a belt."); }
       break;
+    case "trough":
+      if (!t) { if (spend(COST.trough)) { S.grid[y][x] = { kind: "screw", dir: curDir, flights: false, top: null, drive: false, spout: false, foot: false, pitch: 7 }; changed = true; } }
+      else if (isScrew(t)) { if (!prev) { t.dir = curDir; changed = true; } }
+      else if (t.kind === "pillar") log("That's a building column. Route around it.", "bad");
+      break;
+    case "flights":
+      if (!isScrew(t)) log(isConv(t) ? "Screw flights go in a trough, not on a belt frame." : "Set a twin trough first, then drop the flights in.", "bad");
+      else if (!t.flights && spend(COST.flights)) {
+        t.flights = true; t.pitch = sp ? sp.pitch : 7; t.twin = sp ? sp.twin : true; changed = true;
+        if (!prev) log(`${t.twin ? "LH and RH flights" : "Flights"} set, ${t.pitch}" pitch.`);
+      }
+      break;
+    case "hopper": case "cover":
+      if (!isScrew(t)) log(`The ${tool} bolts onto a twin trough flange.`, "bad");
+      else if (!t.flights) log(`Set the flights before closing the top with the ${tool}.`, "bad");
+      else if (t.top !== tool) {
+        const back = t.top ? COST[t.top] : 0; // swapping the top returns the old part to stock
+        S.cash += back; S.spent -= back;
+        if (spend(COST[tool])) { t.top = tool; changed = true; } else { S.cash -= back; S.spent += back; }
+        if (sp && sp.top !== tool && !prev) log(`The print calls for a ${sp.top} here.`, "bad");
+      }
+      break;
+    case "drive":
+      if (!isScrew(t)) log("The screw drive mounts on a trough end.", "bad");
+      else if (!t.drive && spend(COST.drive)) {
+        t.drive = true; changed = true;
+        if (sp && !sp.drive) log("The print puts the drive on the inlet end, under the hopper.", "bad");
+        else if (!ready(t)) log("Drive mounted. It turns once the flights and top are in.");
+      }
+      break;
+    case "spout":
+      if (!isScrew(t)) log("The discharge spout bolts under a screw trough.", "bad");
+      else if (!t.spout && spend(COST.spout)) { t.spout = true; changed = true; if (sp && !sp.spout) log("The print puts the spout on the discharge end.", "bad"); }
+      break;
+    case "foot":
+      if (!isScrew(t)) log("Saddle feet clamp under a screw trough.", "bad");
+      else if (t.drive || t.spout) log("The trough ends already stand on their own feet.", "bad");
+      else if (!t.foot && spend(COST.foot)) { t.foot = true; changed = true; }
+      break;
     case "erase":
-      if (isConv(t)) { const r = refund(t); S.grid[y][x] = null; S.items = S.items.filter(i => i.x !== x || i.y !== y); changed = true; if (!prev) log(`Section removed, $${r} of parts back in stock.`); }
+      if (isLine(t)) { const r = refund(t); S.grid[y][x] = null; S.items = S.items.filter(i => i.x !== x || i.y !== y); changed = true; if (!prev) log(`Section removed, $${r} of parts back in stock.`); }
       else if (t && LEVELS[S.li].sandbox && t.kind !== "pillar") { S.grid[y][x] = null; S.items = S.items.filter(i => i.x !== x || i.y !== y); changed = true; }
       break;
-    case "feeder": if (!t) { S.grid[y][x] = { kind: "feeder", dir: curDir, iv: 2, t: 0, out: 0 }; changed = true; } break;
+    case "feeder": if (!t) { S.grid[y][x] = { kind: "feeder", dir: curDir, iv: 2, t: 0, out: 0 }; changed = true; } else if (t.kind === "feeder" && !prev) { t.mat = t.mat ? undefined : "bulk"; log(`Infeed now releases ${t.mat ? "bulk scoops" : "cartons"}.`); } break;
     case "bin": if (!t) { S.grid[y][x] = { kind: "bin", got: 0 }; changed = true; } break;
   }
   if (changed) recomputePower();
@@ -330,8 +540,9 @@ function step(dt) {
     f.t += dt;
     if (f.t >= f.iv) {
       const nx = x + DX[f.dir], ny = y + DY[f.dir], nt = at(nx, ny);
-      if (ready(nt) && !occ.has(key(nx, ny))) {
-        const it = { id: S.nextId++, x: nx, y: ny, p: 0, hue: Math.random() };
+      // material dumped onto a screw has to land in a hopper
+      if (ready(nt) && !occ.has(key(nx, ny)) && (!isScrew(nt) || nt.top === "hopper")) {
+        const it = { id: S.nextId++, x: nx, y: ny, p: 0, hue: Math.random(), bulk: f.mat === "bulk" };
         S.items.push(it); occ.set(key(nx, ny), it); f.t = 0; f.out++;
       } else { f.t = f.iv; f.waiting = true; }
       if (ready(nt) && f.t === 0) f.waiting = false;
@@ -343,11 +554,12 @@ function step(dt) {
     if (it.gone) continue;
     const t = at(it.x, it.y);
     if (!ready(t)) continue;
-    if (pass === 0 && powered.has(key(it.x, it.y))) it.p = Math.min(1, it.p + dt * BELT_SPEED);
+    if (pass === 0 && powered.has(key(it.x, it.y))) it.p = Math.min(1, it.p + dt * speedOf(t));
     if (it.p < 1) continue;
     const nx = it.x + DX[t.dir], ny = it.y + DY[t.dir], nt = at(nx, ny);
-    if (nt && nt.kind === "bin") {
-      it.gone = true; occ.delete(key(it.x, it.y)); nt.got++;
+    if ((nt && nt.kind === "bin") || (isScrew(t) && t.spout)) {
+      it.gone = true; occ.delete(key(it.x, it.y));
+      if (isScrew(t) && t.spout) t.got = (t.got || 0) + 1; else nt.got++;
       S.shipped++; S.cash += BOX_VALUE; S.shipTimes.push(S.time);
     } else if (ready(nt) && !occ.has(key(nx, ny))) {
       occ.delete(key(it.x, it.y)); it.x = nx; it.y = ny; it.p = 0; occ.set(key(nx, ny), it);
@@ -358,9 +570,14 @@ function step(dt) {
   S.items = S.items.filter(i => !i.gone);
   S.shipTimes = S.shipTimes.filter(t => S.time - t < 60);
   const L = LEVELS[S.li];
-  if (!L.sandbox && !S.done && S.shipped >= L.goal) {
+  const units = L.units || [];
+  if (!L.sandbox && !S.done && S.shipped >= L.goal && !units.every(toPrint) && !S.printWarned) {
+    S.printWarned = true;
+    log(`Quota met, but ${units.filter(u => !toPrint(u)).map(u => u.name).join(" and ")} not built to print yet.`, "bad");
+  }
+  if (!L.sandbox && !S.done && S.shipped >= L.goal && units.every(toPrint)) {
     S.done = true;
-    $("doneText").textContent = `${L.goal} cartons shipped in ${fmtTime(S.time)}. You spent $${S.spent} of the $${L.cash} budget on parts.`;
+    $("doneText").textContent = `${units.length ? `${units.length} units built to print and ` : ""}${L.goal} ${L.item || "cartons"} shipped in ${fmtTime(S.time)}. You spent $${S.spent} of the $${L.cash} budget on parts.`;
     $("next").hidden = S.li >= LEVELS.length - 1;
     $("done").hidden = false;
     log(`Work order "${L.name}" complete.`, "good");
@@ -446,6 +663,109 @@ function drawConv(t, x, y, time, isPow, mini) {
   ctx.restore();
 }
 
+// twin screw section: two U troughs side by side, LH and RH flights on a centre pipe
+function drawScrew(t, x, y, time, isPow, mini) {
+  const s = T;
+  ctx.save(); ctx.translate(x * s + s / 2, y * s + s / 2); ctx.rotate(t.dir * Math.PI / 2);
+  const h = s / 2, lip = s * .07, wall = s * .05;
+  const twin = t.twin !== false;
+  const lane = twin ? (s - 2 * lip - wall) / 2 : s - 2 * lip;
+  const lanes = twin ? [-wall / 2 - lane / 2, wall / 2 + lane / 2] : [0];
+  ctx.fillStyle = "#3b4247"; ctx.fillRect(-h, -h + lip * .4, s, s - lip * .8);
+  ctx.fillStyle = "#1a1e21";
+  for (const cy of lanes) ctx.fillRect(-h, cy - lane / 2, s, lane);
+  if (t.flights) {
+    const ps = s * (t.pitch || 7) / 14 * .5;
+    const off = isPow ? (time * speedOf(t) * s) % ps : 0;
+    lanes.forEach((cy, li) => {
+      const hand = li ? 1 : -1; // LH / RH mirror each other
+      ctx.save(); ctx.beginPath(); ctx.rect(-h, cy - lane / 2, s, lane); ctx.clip();
+      ctx.fillStyle = "#59636a"; ctx.fillRect(-h, cy - lane * .14, s, lane * .28);
+      ctx.strokeStyle = "#c4cbce"; ctx.lineWidth = Math.max(1.2, s * .03);
+      for (let cx = -h - ps + off; cx < h + ps; cx += ps) {
+        ctx.beginPath(); ctx.moveTo(cx - lane * .3 * hand, cy - lane / 2); ctx.lineTo(cx + lane * .3 * hand, cy + lane / 2); ctx.stroke();
+      }
+      ctx.restore();
+    });
+  } else if (!mini) {
+    ctx.fillStyle = "rgba(242,182,50,.45)";
+    ctx.beginPath(); ctx.moveTo(s * .22, 0); ctx.lineTo(-s * .05, -s * .13); ctx.lineTo(-s * .05, s * .13); ctx.fill();
+  }
+  // flanged lips and centre divider
+  ctx.fillStyle = "#8d979c";
+  ctx.fillRect(-h, -h + lip * .4, s, lip * .6); ctx.fillRect(-h, h - lip, s, lip * .6); if (twin) ctx.fillRect(-h, -wall / 2, s, wall);
+  if (t.foot) {
+    // saddle foot: a strap across the trough with a pad either side
+    ctx.fillStyle = "#6b757b"; ctx.fillRect(-s * .06, -h, s * .12, s);
+    ctx.fillStyle = "#2a2f33"; ctx.fillRect(-s * .1, -h, s * .2, lip * .5); ctx.fillRect(-s * .1, h - lip * .5, s * .2, lip * .5);
+  }
+  if (t.top === "cover") {
+    ctx.fillStyle = "rgba(141,151,156,.82)"; ctx.fillRect(-h, -h + lip * .4, s, s - lip * .8);
+    ctx.fillStyle = "#4b5358";
+    for (let i = 0; i < 4; i++) for (const by of [-h + lip * .8, h - lip * .8]) { ctx.beginPath(); ctx.arc(-h + (i + .5) * s / 4, by, s * .018, 0, 7); ctx.fill(); }
+  } else if (t.top === "hopper") {
+    // hopper throat with grizzly bars across it
+    ctx.strokeStyle = "#b39b5c"; ctx.lineWidth = Math.max(1.5, s * .045);
+    ctx.strokeRect(-h + 1, -h + 1, s - 2, s - 2);
+    ctx.strokeStyle = "rgba(179,155,92,.55)"; ctx.lineWidth = Math.max(1, s * .025);
+    for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-h + i * s / 4, -h + 2); ctx.lineTo(-h + i * s / 4, h - 2); ctx.stroke(); }
+  }
+  if (t.spout) {
+    ctx.fillStyle = "#15181a"; ctx.fillRect(h - s * .34, -h + lip, s * .3, s - 2 * lip);
+    ctx.strokeStyle = "#f2b632"; ctx.lineWidth = 2; ctx.strokeRect(h - s * .34 + 1, -h + lip + 1, s * .3 - 2, s - 2 * lip - 2);
+    ctx.fillStyle = "#f2b632"; ctx.beginPath(); ctx.moveTo(h - s * .19, s * .12); ctx.lineTo(h - s * .28, -s * .04); ctx.lineTo(h - s * .1, -s * .04); ctx.fill();
+  }
+  if (t.drive) {
+    // two gearmotors on the standoff at the inlet end, one per screw
+    for (const cy of lanes) {
+      ctx.fillStyle = "#3a57b8"; ctx.fillRect(-h + 1, cy - lane * .42, s * .28, lane * .84);
+      ctx.strokeStyle = "#1c2a55"; ctx.lineWidth = 1; ctx.strokeRect(-h + 1.5, cy - lane * .42 + .5, s * .28 - 1, lane * .84 - 1);
+    }
+    ctx.fillStyle = isPow ? "#6fcf8b" : "#f08a4b";
+    ctx.beginPath(); ctx.arc(-h + s * .2, 0, s * .035, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// dashed blue outline of the print: what goes where, plus the overall length
+function drawBlueprint() {
+  const units = LEVELS[S.li].units; if (!units) return;
+  ctx.save();
+  ctx.font = `600 ${Math.max(9, Math.round(T * .2))}px "IBM Plex Mono", monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const c of spec.values()) {
+    const t = at(c.x, c.y), px = c.x * T, py = c.y * T;
+    const ok = cellOk(c, t), belt = LEVELS[S.li].family === "belt";
+    ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ok ? "rgba(111,168,220,.3)" : "rgba(111,168,220,.8)";
+    ctx.strokeRect(px + 3, py + 3, T - 6, T - 6);
+    if (!isLine(t)) {
+      ctx.fillStyle = "rgba(111,168,220,.75)";
+      ctx.fillText(belt ? "BELT" : `${c.top === "hopper" ? "HOP" : "CVR"} ${c.pitch}"`, px + T / 2, py + T / 2 - T * .12);
+      if (c.drive || c.spout || c.motor) ctx.fillText(c.spout ? "SPOUT" : "DRIVE", px + T / 2, py + T / 2 + T * .14);
+    }
+  }
+  for (const u of units) {
+    const cells = [...spec.values()].filter(c => c.unit === u);
+    const hop = cells.filter(c => c.top === "hopper");
+    if (hop.length) {
+      const xs = hop.map(c => c.x), ys = hop.map(c => c.y);
+      ctx.setLineDash([6, 4]); ctx.strokeStyle = "rgba(111,168,220,.55)"; ctx.lineWidth = 1.5;
+      const hx = Math.min(...xs) * T - T * .12, hy = Math.min(...ys) * T - T * .12;
+      ctx.strokeRect(hx, hy, (Math.max(...xs) + 1) * T + T * .12 - hx, (Math.max(...ys) + 1) * T + T * .12 - hy);
+    }
+    // dimension line under the unit
+    const x0 = Math.min(...cells.map(c => c.x)) * T, x1 = (Math.max(...cells.map(c => c.x)) + 1) * T;
+    const dy = (Math.max(...cells.map(c => c.y)) + 1) * T + T * .22;
+    ctx.setLineDash([]); ctx.strokeStyle = "rgba(111,168,220,.7)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, dy); ctx.lineTo(x1, dy);
+    ctx.moveTo(x0, dy - 5); ctx.lineTo(x0, dy + 5); ctx.moveTo(x1, dy - 5); ctx.lineTo(x1, dy + 5); ctx.stroke();
+    ctx.fillStyle = "#23282b"; const lbl = `${u.name.toUpperCase()} · ${u.label}`;
+    const w = ctx.measureText(lbl).width + 10; ctx.fillRect((x0 + x1) / 2 - w / 2, dy - 7, w, 14);
+    ctx.fillStyle = "rgba(111,168,220,.9)"; ctx.fillText(lbl, (x0 + x1) / 2, dy);
+  }
+  ctx.restore();
+}
+
 function drawFeeder(f, x, y, time) {
   const s = T; ctx.save(); ctx.translate(x * s + s / 2, y * s + s / 2);
   ctx.fillStyle = "#2c2a22"; ctx.fillRect(-s * .42, -s * .42, s * .84, s * .84);
@@ -482,6 +802,16 @@ function drawPillar(x, y) {
 function drawBox(it, t) {
   const s = T, p = it.p - .5;
   const cx = it.x * s + s / 2 + DX[t.dir] * p * s * .9, cy = it.y * s + s / 2 + DY[t.dir] * p * s * .9;
+  if (it.bulk) {
+    // a scoop of bulk material: a rough dark lump
+    const r = s * .2;
+    ctx.fillStyle = `hsl(${25 + it.hue * 12}, 30%, ${24 + it.hue * 10}%)`;
+    ctx.beginPath();
+    for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, rr = r * (.8 + .25 * Math.sin(it.id * 3 + k * 2.1)); ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+    ctx.fill();
+    if (jammed.has(key(it.x, it.y))) { ctx.strokeStyle = "#f08a4b"; ctx.lineWidth = 2; ctx.stroke(); }
+    return;
+  }
   const b = s * .5;
   ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(cx - b / 2 + 2, cy - b / 2 + 3, b, b);
   ctx.fillStyle = `hsl(${30 + it.hue * 10}, 42%, ${52 + it.hue * 8}%)`; ctx.fillRect(cx - b / 2, cy - b / 2, b, b);
@@ -491,12 +821,13 @@ function drawBox(it, t) {
 
 function render(time) {
   drawFloor();
-  const showPow = tool === "motor" || tool === "inspect";
+  drawBlueprint();
+  const showPow = tool === "motor" || tool === "drive" || tool === "inspect";
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = S.grid[y][x]; if (!t) continue;
-    if (t.kind === "conv") {
+    if (isLine(t)) {
       if (showPow && powered.has(key(x, y))) { ctx.fillStyle = "rgba(111,207,139,.13)"; ctx.fillRect(x * T, y * T, T, T); }
-      drawConv(t, x, y, time, powered.has(key(x, y)));
+      (isScrew(t) ? drawScrew : drawConv)(t, x, y, time, powered.has(key(x, y)));
     }
     else if (t.kind === "feeder") drawFeeder(t, x, y, time);
     else if (t.kind === "bin") drawBin(t, x, y);
@@ -507,9 +838,10 @@ function render(time) {
     const [x, y] = hover;
     ctx.strokeStyle = tool === "erase" ? "#f08a4b" : "#f2b632"; ctx.lineWidth = 2;
     ctx.strokeRect(x * T + 1, y * T + 1, T - 2, T - 2);
-    if ((tool === "frame" || tool === "full" || tool === "feeder") && !at(x, y)) {
+    if ((tool === "frame" || tool === "full" || tool === "feeder" || tool === "trough") && !at(x, y)) {
       ctx.globalAlpha = .45;
       if (tool === "feeder") drawFeeder({ dir: curDir, t: 0, iv: 1 }, x, y, time);
+      else if (tool === "trough") drawScrew({ dir: curDir }, x, y, time, false);
       else drawConv({ dir: curDir, rollers: tool === "full", belt: tool === "full" }, x, y, time, false);
       ctx.globalAlpha = 1;
     }
@@ -527,6 +859,14 @@ function iconCanvas(id) {
     if (id === "rollers") drawConv({ ...t, rollers: true }, 0, 0, 0, false, true);
     if (id === "belt" || id === "full") drawConv({ ...t, rollers: true, belt: true }, 0, 0, 0, false, true);
     if (id === "motor") drawConv({ ...t, rollers: true, belt: true, motor: true }, 0, 0, 0, true, true);
+    const sc = { dir: 0, pitch: 7 };
+    if (id === "trough") drawScrew(sc, 0, 0, 0, false, true);
+    if (id === "flights") drawScrew({ ...sc, flights: true }, 0, 0, 0, false, true);
+    if (id === "hopper") drawScrew({ ...sc, flights: true, top: "hopper" }, 0, 0, 0, false, true);
+    if (id === "cover") drawScrew({ ...sc, flights: true, top: "cover" }, 0, 0, 0, false, true);
+    if (id === "drive") drawScrew({ ...sc, flights: true, drive: true }, 0, 0, 0, true, true);
+    if (id === "spout") drawScrew({ ...sc, flights: true, spout: true }, 0, 0, 0, false, true);
+    if (id === "foot") drawScrew({ ...sc, foot: true }, 0, 0, 0, false, true);
     if (id === "feeder") drawFeeder({ dir: 0, t: 0, iv: 1 }, 0, 0, 0);
     if (id === "bin") drawBin({ got: "" }, 0, 0);
     if (id === "erase") { g.strokeStyle = "#f08a4b"; g.lineWidth = 6; g.beginPath(); g.moveTo(14, 14); g.lineTo(46, 46); g.moveTo(46, 14); g.lineTo(14, 46); g.stroke(); }
@@ -561,12 +901,23 @@ function setTool(id) {
   document.querySelectorAll(".tool").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === id));
 }
 
+function showOrder(L) {
+  document.querySelectorAll(".tool").forEach(b => b.hidden = !toolShown(TOOLS.find(x => x.id === b.dataset.tool), L));
+  if (!toolShown(TOOLS.find(x => x.id === tool), L)) setTool(L.family === "screw" ? "trough" : "full");
+  $("hint").innerHTML = L.family === "screw"
+    ? `Drag with <b>Trough</b> to lay the unit along the blue outline. Then set flights, the hopper or cover, the drive, spout and saddle feet. Keys <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> pick parts, right-click erases.`
+    : `Drag with <b>Frame</b> to lay a run in the drag direction. Then install rollers, the belt and a drive motor. <kbd>R</kbd> rotates, right-click erases, keys <kbd>1</kbd>–<kbd>7</kbd> pick parts.`;
+  $("oCheck").hidden = !L.units;
+  $("bpActions").hidden = !L.custom;
+  $("viewBp").hidden = !drawingFor(L.custom);
+  buildSpec();
+}
+
 function loadLevel(li) {
   S = newState(li); $("done").hidden = true;
   const L = LEVELS[li];
   $("oName").textContent = L.name; $("oBrief").textContent = L.brief;
-  document.querySelectorAll(".tool").forEach(b => { const t = TOOLS.find(x => x.id === b.dataset.tool); b.hidden = !!t.sandbox && !L.sandbox; });
-  if (!L.sandbox && (tool === "feeder" || tool === "bin")) setTool("full");
+  showOrder(L);
   $("level").value = li; $("log").innerHTML = "";
   log(`Work order: ${L.name}.`);
   recomputePower();
@@ -575,6 +926,14 @@ function loadLevel(li) {
 function inspector() {
   const el = $("insp");
   const t = hover && at(...hover);
+  const sp0 = hover && spec.get(key(...hover));
+  if (!t && sp0) {
+    const what = LEVELS[S.li].family === "belt"
+      ? `Frame facing ${DIRN[sp0.dir]}, rollers and belt${sp0.motor ? ", drive motor on this section" : ""}.`
+      : `Trough facing ${DIRN[sp0.dir]}, ${sp0.twin ? "LH/RH flights" : "flights"} at ${sp0.pitch}" pitch, ${sp0.top} on top${sp0.drive ? ", drive on this end" : ""}${sp0.spout ? ", discharge spout on this end" : ""}.`;
+    el.innerHTML = `<div class="insp-title">Print · ${sp0.unit.name}, section ${sp0.i + 1} of ${sp0.unit.plan.length}</div><div class="insp-note">${what}</div>`;
+    return;
+  }
   if (!t) {
     el.innerHTML = `<div class="insp-title dim">Empty floor</div><div class="insp-note">Hover a section to see what it still needs. Belt speed ${BELT_SPEED.toFixed(1)} m/s, one drive covers ${DRIVE_REACH} m.</div>`;
     return;
@@ -587,8 +946,28 @@ function inspector() {
       <ul class="check">${row("Frame", true)}${row("Rollers", t.rollers)}${row("Belt", t.belt)}${row("Drive motor here", t.motor, "none")}
       <li><span>Powered</span><b class="${p ? "yes" : "no"}">${p ? "yes" : "no"}</b></li></ul>
       <div class="insp-note">${need}</div>`;
+  } else if (t.kind === "screw") {
+    const p = powered.has(key(...hover)), sp = spec.get(key(...hover));
+    const row = (label, ok, val) => `<li><span>${label}</span><b class="${ok ? "yes" : "no"}">${val}</b></li>`;
+    const topOk = sp ? t.top === sp.top : !!t.top;
+    const need = !t.flights ? "Set the LH/RH flights next."
+      : !t.top ? "Close the top: hopper over the inlet, cover elsewhere."
+      : !p ? `No drive coupled within ${DRIVE_REACH} m. Mount the drive on the inlet end.`
+      : t.spout ? `Discharging. ${t.got || 0} scoops out so far.` : "Turning.";
+    const print = sp ? `Print: ${sp.top}, ${sp.pitch}" pitch${sp.drive ? ", drive end" : ""}${sp.spout ? ", discharge spout" : ""}.` : "Not on the print.";
+    el.innerHTML = `<div class="insp-title">${t.twin === false ? "Screw" : "Twin screw"} section · ${DIRN[t.dir]}</div>
+      <ul class="check">${row("Trough", !sp || t.dir === sp.dir, sp && t.dir !== sp.dir ? "wrong way" : "fitted")}
+      ${row(t.twin === false ? "Flights" : "Flights LH/RH", t.flights, t.flights ? `${t.pitch}" pitch` : "missing")}
+      ${row("Top", topOk, t.top || "open")}
+      ${t.drive || sp?.drive ? row("Drive", t.drive, t.drive ? "fitted" : "missing") : ""}
+      ${t.spout || sp?.spout ? row("Discharge spout", t.spout, t.spout ? "fitted" : "missing") : ""}
+      ${sp && !sp.drive && !sp.spout && sp.unit.feet ? row("Saddle foot", t.foot, t.foot ? "fitted" : "none") : ""}
+      <li><span>Turning</span><b class="${p ? "yes" : "no"}">${p ? `yes, ${speedOf(t).toFixed(2)} m/s` : "no"}</b></li></ul>
+      <div class="insp-note">${need} ${print}</div>`;
   } else if (t.kind === "feeder") {
-    el.innerHTML = `<div class="insp-title">Infeed · ${DIRN[t.dir]}</div><div class="insp-note">Releases a carton every ${t.iv.toFixed(1)} s onto the section it faces. Released so far: ${t.out}.${t.waiting ? " <span class='no'>Waiting: the section in front is missing, unfinished or full.</span>" : ""}</div>`;
+    const bulk = t.mat === "bulk", nt = at(hover[0] + DX[t.dir], hover[1] + DY[t.dir]);
+    const why = isScrew(nt) && nt.top !== "hopper" ? "Waiting: a loader can only dump into a hopper." : "Waiting: the section in front is missing, unfinished or full.";
+    el.innerHTML = `<div class="insp-title">${bulk ? "Loader dump point" : "Infeed"} · ${DIRN[t.dir]}</div><div class="insp-note">Releases ${bulk ? "a scoop of bulk material" : "a carton"} every ${t.iv.toFixed(1)} s onto the section it faces. Released so far: ${t.out}.${t.waiting ? ` <span class='no'>${why}</span>` : ""}</div>`;
   } else if (t.kind === "bin") {
     el.innerHTML = `<div class="insp-title">Shipping bin</div><div class="insp-note">Accepts cartons from any side. Received ${t.got}. Each pays $${BOX_VALUE}.</div>`;
   } else {
@@ -605,6 +984,11 @@ function hud(now) {
   const win = Math.min(60, S.time);
   $("gRate").textContent = win > 3 ? (S.shipTimes.length / win * 60).toFixed(1) : "0.0";
   $("oBar").style.width = L.sandbox ? "0%" : Math.min(100, S.shipped / L.goal * 100) + "%";
+  if (L.units) {
+    const rows = L.units.map(printCheck);
+    $("oCheck").innerHTML = `<li class="dim"><span>Built to print</span>${L.units.map(u => `<b>${u.name.replace("Unit ", "U")}</b>`).join("")}</li>` +
+      rows[0].map((r, i) => `<li><span>${r[0]}</span>${rows.map(u => `<b class="${u[i][1] >= u[i][2] ? "yes" : "no"}">${u[i][1]}/${u[i][2]}</b>`).join("")}</li>`).join("");
+  }
   inspector();
 }
 
@@ -639,21 +1023,186 @@ cv.addEventListener("pointerup", endPaint); cv.addEventListener("pointercancel",
 cv.addEventListener("pointerleave", () => { if (!paint) hover = null; });
 window.addEventListener("keydown", e => {
   if (e.target.tagName === "SELECT") return;
-  const t = TOOLS.find(t => t.key === e.key);
-  if (t && (!t.sandbox || LEVELS[S.li].sandbox)) setTool(t.id);
+  const t = TOOLS.find(t => t.key === e.key.toLowerCase() && toolShown(t, LEVELS[S.li]));
+  if (t) setTool(t.id);
   if (e.key === "r" || e.key === "R") rotate();
   if (e.key === " ") { e.preventDefault(); toggleRun(); }
 });
 function toggleRun() { running = !running; $("run").textContent = running ? "Pause" : "Run"; $("run").classList.toggle("primary", running); }
 $("run").addEventListener("click", toggleRun);
 $("speed").addEventListener("click", () => { speedMul = speedMul === 1 ? 2 : speedMul === 2 ? 4 : 1; $("speed").textContent = speedMul + "×"; });
-LEVELS.forEach((L, i) => { const o = document.createElement("option"); o.value = i; o.textContent = (L.sandbox ? "" : `Order ${i + 1}: `) + L.name; $("level").appendChild(o); });
+function populateLevels() {
+  const sel = $("level"); sel.innerHTML = "";
+  let group = null;
+  LEVELS.forEach((L, i) => {
+    if (L.custom && !group) { group = document.createElement("optgroup"); group.label = "Your blueprints"; sel.appendChild(group); }
+    const o = document.createElement("option"); o.value = i;
+    o.textContent = L.custom || L.sandbox ? L.name : `Order ${i + 1}: ${L.name}`;
+    (group || sel).appendChild(o);
+  });
+  if (S) sel.value = S.li;
+}
 $("level").addEventListener("change", e => loadLevel(+e.target.value));
 $("next").addEventListener("click", () => loadLevel(S.li + 1));
 $("stay").addEventListener("click", () => { $("done").hidden = true; });
 
+// ---------- adding blueprints ----------
+// Blueprints the player adds live only in this browser: specs in one list, drawings under their own keys.
+const BP_STORE = "beltline.blueprints", PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+const drawings = new Map();
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+function savedBlueprints() { try { return JSON.parse(store.get(BP_STORE) || "[]"); } catch { return []; } }
+function drawingFor(id) { return id ? drawings.get(id) || store.get(`${BP_STORE}.${id}`) : null; }
+function addBlueprintLevel(bp) { LEVELS.push(levelFromSpec(bp.spec, { custom: bp.id })); }
+
+let pdfLib = null;
+function loadPdfLib() {
+  if (pdfLib) return pdfLib;
+  pdfLib = new Promise((res, rej) => {
+    const sc = document.createElement("script"); sc.src = PDFJS + "pdf.min.js";
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; res(window.pdfjsLib); };
+    sc.onerror = () => { pdfLib = null; rej(new Error("Couldn't load the PDF reader. Check your connection and try again.")); };
+    document.head.appendChild(sc);
+  });
+  return pdfLib;
+}
+// scale a drawing down to a JPEG small enough to keep in browser storage
+function sheetImage(src, w, h) {
+  const k = Math.min(1, 1600 / w), c = document.createElement("canvas");
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", .82);
+}
+async function readDrawing(file) {
+  if (/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)) {
+    const lib = await loadPdfLib();
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    let text = "";
+    for (let i = 1; i <= doc.numPages; i++) {
+      const tc = await (await doc.getPage(i)).getTextContent();
+      text += tc.items.map(it => it.str).join(" ") + "\n";
+    }
+    const page = await doc.getPage(1), vp = page.getViewport({ scale: 2 });
+    const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+    return { text, image: sheetImage(c, c.width, c.height), pages: doc.numPages };
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    return { text: "", image: sheetImage(img, img.naturalWidth, img.naturalHeight), pages: 1 };
+  } finally { URL.revokeObjectURL(url); }
+}
+// pull the conveyor spec out of a drawing's title block and notes
+function parseDrawing(raw) {
+  const t = raw.toUpperCase().replace(/[“”″]/g, '"').replace(/[‘’′]/g, "'").replace(/''/g, '"').replace(/\s+/g, " ");
+  const spec = {}, found = [];
+  const main = t.match(/(\d+(?:\.\d+)?)"\s*DIA\.?\s*X\s*(\d+)'\s*-?\s*(\d+(?:\.\d+)?)"\s*(?:LG|LONG)\.?\s*((?:TWIN\s+|SCREW\s+)*)(FEEDER|CONVEYOR|SCREW)/);
+  if (main) {
+    spec.type = "screw"; spec.dia = +main[1]; spec.lengthFt = +main[2] + +main[3] / 12; spec.twin = /TWIN/.test(main[4]);
+    found.push(`${main[1]}" dia × ${main[2]}'-${main[3]}" ${spec.twin ? "twin " : ""}${main[5] === "FEEDER" ? "feeder" : "screw conveyor"}`);
+  } else {
+    const len = t.match(/(\d+)'\s*-\s*(\d+(?:\.\d+)?)"\s*(?:LG|LONG)\b/);
+    if (len) { spec.lengthFt = +len[1] + +len[2] / 12; found.push(`${len[1]}'-${len[2]}" long`); }
+    if (/SCREW|FLIGHT|TROUGH|FEEDER/.test(t)) spec.type = "screw"; else if (/BELT/.test(t)) spec.type = "belt";
+    if (spec.type) found.push(spec.type === "belt" ? "belt conveyor" : "screw conveyor");
+    spec.twin = /TWIN/.test(t);
+  }
+  const qty = t.match(/QTY\.?\s*REQ'?U?I?R?E?D\.?:?\s*(\d+)\s*UNITS?/);
+  if (qty) { spec.units = +qty[1]; found.push(`${+qty[1]} unit${+qty[1] > 1 ? "s" : ""} required`); }
+  const hop = t.match(/WITH\s+(?:A\s+)?(\d+(?:\.\d+)?)\s*CU\.?\s*YDS?\.?\s*HOPPER/) || t.match(/(\d+(?:\.\d+)?)\s*CU\.?\s*YDS?\.?\s*(?:CAPACITY\s+)?HOPPER/);
+  if (hop) { spec.hopperYd = +hop[1]; found.push(`${hop[1]} yd³ hopper`); }
+  const zones = [], seen = new Set();
+  for (const m of t.matchAll(/\d+(?:\.\d+)?"\s*DIA\.?\s*X\s*(\d+(?:\.\d+)?)"\s*PITCH([^•]{0,90})/g)) {
+    const pitch = +m[1]; if (seen.has(pitch)) continue; seen.add(pitch);
+    const len = m[2].match(/(\d+(?:\.\d+)?)"\s*LG/);
+    zones.push(len ? { pitch, len: +len[1] } : { pitch });
+  }
+  if (zones.length) { spec.zones = zones; spec.type = spec.type || "screw"; found.push(`flight pitch ${zones.map(z => z.pitch + '"').join(" → ")}`); }
+  return { spec, found };
+}
+const zonesText = zones => (zones || []).map(z => z.len ? `${z.pitch}x${z.len}` : `${z.pitch}`).join(", ");
+const parseZones = txt => [...txt.matchAll(/(\d+(?:\.\d+)?)\s*"?\s*(?:[x×*:]\s*(\d+(?:\.\d+)?))?/gi)]
+  .map(m => m[2] ? { pitch: +m[1], len: +m[2] } : { pitch: +m[1] }).filter(z => z.pitch > 0);
+
+let draft = null; // { image, name }
+function fillForm(sp, name) {
+  const type = sp.type || "screw", len = sp.lengthFt || 20, n = sectionsFor({ lengthFt: len });
+  const auto = sp.title || (type === "belt" ? `Belt conveyor, ${ftLabel(len)}`
+    : `${sp.dia ? `${sp.dia}" ` : ""}${sp.twin ? "twin " : ""}screw feeder, ${ftLabel(len)}${sp.hopperYd ? ` with ${sp.hopperYd} yd³ hopper` : ""}`);
+  $("bpTitle").value = (auto || name).replace(/^./, ch => ch.toUpperCase());
+  $("bpType").value = type; $("bpTwin").checked = !!sp.twin;
+  $("bpLen").value = +len.toFixed(2); $("bpUnits").value = clamp(sp.units || 1, 1, 3);
+  $("bpHop").value = sp.hopperYd || sp.type === "screw" ? Math.round(n * 2 / 3) : 1;
+  $("bpZones").value = zonesText(sp.zones);
+  formChanged();
+}
+function formSpec() {
+  const type = $("bpType").value;
+  return {
+    title: $("bpTitle").value.trim(), type, twin: type === "screw" && $("bpTwin").checked,
+    lengthFt: clamp(+$("bpLen").value || 20, 3, 40), units: clamp(Math.round(+$("bpUnits").value || 1), 1, 3),
+    hopperSections: +$("bpHop").value || undefined, zones: type === "screw" ? parseZones($("bpZones").value) : undefined,
+  };
+}
+function formChanged() {
+  const sp = formSpec(), n = sectionsFor(sp);
+  document.querySelectorAll("#bpForm .screwOnly").forEach(el => el.hidden = sp.type !== "screw");
+  $("bpHop").max = n - 1;
+  const plan = unitPlan(sp);
+  const pitches = sp.type === "screw" ? ` Flights by section: ${plan.map(c => c.pitch + '"').join(", ")}.` : "";
+  const readLine = draft?.found?.length ? `Read from the drawing: ${draft.found.join(", ")}. ` : draft?.image ? "Couldn't read any specs from this drawing, so fill them in below. " : "";
+  $("bpRead").textContent = `${readLine}On the floor: ${n} sections per unit (1 m each).${pitches}${sp.units < (draft?.spec?.units || 0) ? ` The print calls for ${draft.spec.units} units; the floor fits 3.` : ""}`;
+}
+$("bpForm").addEventListener("input", formChanged);
+$("addBp").addEventListener("click", () => {
+  draft = null; $("bpFile").value = ""; $("bpFileName").textContent = "No file chosen. You can also fill in the spec by hand.";
+  $("bpSheet").innerHTML = "<span>No drawing loaded</span>"; $("bpTitle").value = "";
+  fillForm({ type: "screw", lengthFt: 20, units: 1 }, "");
+  $("bpDlg").returnValue = ""; $("bpDlg").showModal();
+});
+$("bpFile").addEventListener("change", async e => {
+  const file = e.target.files[0]; if (!file) return;
+  $("bpFileName").textContent = `Reading ${file.name}…`;
+  try {
+    const d = await readDrawing(file), { spec: sp, found } = parseDrawing(d.text);
+    draft = { image: d.image, found, spec: sp };
+    const img = new Image(); img.src = d.image; img.alt = `Page 1 of ${file.name}`;
+    $("bpSheet").replaceChildren(img);
+    $("bpFileName").textContent = `${file.name}${d.pages > 1 ? ` · ${d.pages} pages, showing page 1` : ""}`;
+    fillForm(sp, file.name.replace(/\.[^.]+$/, ""));
+  } catch (err) {
+    draft = null; $("bpFileName").textContent = `Couldn't read ${file.name}. ${err.message || ""}`;
+  }
+});
+$("bpDlg").addEventListener("close", () => {
+  if ($("bpDlg").returnValue !== "make") return;
+  const sp = formSpec(); if (!sp.title) return;
+  const bp = { id: Date.now().toString(36), spec: sp };
+  if (draft?.image) drawings.set(bp.id, draft.image);
+  const keptSheet = !draft?.image || store.set(`${BP_STORE}.${bp.id}`, draft.image);
+  const list = savedBlueprints(); list.push(bp);
+  const kept = store.set(BP_STORE, JSON.stringify(list));
+  addBlueprintLevel(bp); populateLevels(); loadLevel(LEVELS.length - 1);
+  log(`Blueprint added: ${sp.title}.`, "good");
+  if (!kept) log("This browser won't let the game save, so the blueprint lasts until you close the page.", "bad");
+  else if (!keptSheet) log("The drawing is too large to keep after a reload. The work order itself is saved.", "bad");
+});
+$("viewBp").addEventListener("click", () => { $("sheetImg").src = drawingFor(LEVELS[S.li].custom) || ""; $("sheetDlg").showModal(); });
+$("delBp").addEventListener("click", () => {
+  const L = LEVELS[S.li]; if (!L.custom || !confirm(`Remove the blueprint "${L.spec.title}"?`)) return;
+  store.set(BP_STORE, JSON.stringify(savedBlueprints().filter(b => b.id !== L.custom)));
+  store.del(`${BP_STORE}.${L.custom}`); drawings.delete(L.custom);
+  LEVELS.splice(S.li, 1); loadLevel(0); populateLevels();
+});
+
 // ---------- boot ----------
 function start(data) {
+  savedBlueprints().forEach(addBlueprintLevel); populateLevels();
   buildRack(); updateRot(); setTool("full");
   if (data && data.S) { S = data.S; loadLevelUI(); } else loadLevel(0);
   resize(); new ResizeObserver(resize).observe(cv.parentElement);
@@ -668,7 +1217,7 @@ function start(data) {
 }
 function loadLevelUI() {
   const L = LEVELS[S.li]; $("oName").textContent = L.name; $("oBrief").textContent = L.brief; $("level").value = S.li;
-  document.querySelectorAll(".tool").forEach(b => { const t = TOOLS.find(x => x.id === b.dataset.tool); b.hidden = !!t.sandbox && !L.sandbox; });
+  showOrder(L);
   recomputePower();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));
