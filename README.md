@@ -28,20 +28,23 @@ Each 1 m section needs a **frame**, **rollers**, and a **belt**. A **drive motor
 1. **First run**: a straight line from the infeed to the bin.
 2. **Around the columns**: route around building columns.
 3. **Two lines, one dock**: merge two infeeds into one bin.
-4. **Blueprint: twin screw feeder**: build 2 units to print (see below), then discharge 40 scoops.
+4. **Sample blueprint: twin screw feeder**: build 2 units to print, then discharge 40 scoops.
 5. **Open shop floor**: a sandbox with every part, where you place your own infeeds and bins.
 
-## Blueprint: twin screw feeder
+## Add a blueprint
 
-Based on a fabrication print for a 14" dia × 20'-0" twin screw feeder with a 20 yd³ hopper, 2 units required. Each grid section is about 1 m, so one unit is 6 sections along the blue outline:
+Press **Add blueprint** to turn a drawing into a work order you can build.
 
-| Section | Top | Flight pitch | Extra |
-| --- | --- | --- | --- |
-| 1 | Hopper | 5" | Twin drive (two gearmotors, one per screw) |
-| 2 | Hopper | 5" | |
-| 3 | Hopper | 7" | |
-| 4 | Hopper | 7" | |
-| 5 | Cover | 7" | |
-| 6 | Cover | 14" | Discharge spout |
+1. Choose a drawing, as a PDF or an image. For a PDF, the game reads the title block and notes to fill in the spec: diameter and overall length (`14" DIA X 20'-0" LG TWIN FEEDER`), units required (`QTY REQ'D: 02 UNITS`), hopper size (`20 CU YD HOPPER`), and flight pitch zones (`14" DIA X 5" PITCH ... 90" LG`).
+2. Check the spec and fix anything it missed: name, type (screw or belt), twin screws, overall length, units (up to 3), hopper length and flight pitch zones.
+3. Press **Create work order**. The game lays a blue outline on the floor with one 1 m section per 3.3 ft of length, and a checklist that verifies each unit against the print.
 
-Build each section as **twin trough → LH/RH flights → hopper or cover**. Add **3 saddle feet** per unit on the middle sections (the trough ends stand on their own feet). Flight pitch sets screw speed (5" 0.40 m/s, 7" 0.55 m/s, 14" 1.1 m/s), which is why the print opens up the pitch toward the discharge. Loaders can only dump into a hopper. The order closes once both units pass the built-to-print check and 40 scoops have been discharged.
+Blueprints and drawings are kept in your browser only. Nothing is uploaded. **View drawing** reopens the sheet while you build, and **Remove blueprint** deletes it. The PDF reader (pdf.js) loads from cdnjs the first time you open a PDF.
+
+### Screw feeder blueprints
+
+Each section is built as **trough → flights → hopper or cover**. The **screw drive** goes on the inlet end, the **discharge spout** on the far end, and **saddle feet** on the middle sections. Flight pitch sets screw speed (0.08 m/s per inch of pitch, so 5" moves 0.4 m/s and 14" moves 1.1 m/s), which is why feeders open the pitch toward the discharge. Loaders can only dump into a hopper. The order closes once every unit passes the built-to-print check and the quota is discharged.
+
+### Belt conveyor blueprints
+
+Each section needs a frame, rollers and a belt, plus a drive motor on every section the outline marks (one per 6 m).
